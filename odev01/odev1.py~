@@ -85,7 +85,7 @@ mySum = getDistance(roundedArr1.copy(),roundedArr2.copy())
 print "My distance is :  " , mySum
 plt.figure(1)
 plt.title("My Histogram")
-plt.axis((20,-20,0,1))
+plt.axis(20,-20,0,1)
 p1 = plt.bar(roundedArr1.keys(),roundedArr1.values(),1.0, color='g')
 p2 = plt.bar(roundedArr2.keys(),roundedArr2.values(),1.0, color='r')
 plt.show()
