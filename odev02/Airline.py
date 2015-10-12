@@ -18,4 +18,4 @@ class Airline(object):
         return self.name
     
     def toString(self):
-        return self.name + ", partners: " + self.partners
+        return self.name + ", partners: " + ', '.join(self.partners)
