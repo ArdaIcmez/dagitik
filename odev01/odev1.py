@@ -45,7 +45,7 @@ def getDistance(arr1,arr2):
     distIndex = abs(distIndex)
     tempArr = arr2.copy()
     for item in sorted(arr1.keys()):
-        while arr1[item] > 0.0: # To eliminate the error of all the rounding
+        while arr1[item] > 0.0:
             myIndex = item+distIndex
             if arr2.has_key(myIndex):
                 if(arr1[item]> arr2[item+distIndex]):
