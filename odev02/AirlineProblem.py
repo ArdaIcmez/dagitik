@@ -36,13 +36,13 @@ airlinesPartnersNetwork = []
 pathForMiles = []
 airlinesVisited = []
 for myLine in myFile:
-    print myLine
     airlineNames = myLine.split(',')
     airlineNames[-1] = airlineNames[-1].replace('\n','')
     airlinesPartnersNetwork.append(Airline(airlineNames))
+    print airlinesPartnersNetwork[-1].toString()
 start = raw_input("Enter airline miles are on: ")
 goal = raw_input("Enter goal airline: ")
 if canRedeem(start,goal,pathForMiles,airlinesVisited,airlinesPartnersNetwork):
-    print "Path to redeem miles: ", pathForMiles
+    print "Path to redeem miles: ", ' -> '.join(pathForMiles)
 else:
     print "Cannot convert miles from " , start , " to " , goal , "."
