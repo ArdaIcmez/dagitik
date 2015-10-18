@@ -14,11 +14,11 @@ class myThread (threading.Thread):
     def run(self):
         readFile(self)
 
-def createKey(shift,alphabet):
+def createKey():
     encryptedText = ""
     myLenght = len(alphabet)
     for i in alphabet:
-        encryptedText += alphabet[(alphabet.index(i)-shift)%myLenght]
+        encryptedText += alphabet[(alphabet.index(i)-configParam[0])%myLenght]
     return encryptedText
 
 def encryptBlock(text):
@@ -74,7 +74,7 @@ def main():
         sys.exit()
     
     myThreads = []
-    keyAlphabet = createKey(configParam[0],alphabet)
+    keyAlphabet = createKey()
     for i in range(0,configParam[1]):
         thread = myThread(i,"Thread0"+`i`,0)
         thread.start()
