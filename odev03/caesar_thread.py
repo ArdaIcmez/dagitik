@@ -34,7 +34,7 @@ def encryptBlock(text):
 def readFile(thread):
     while True:
         inputLock.acquire()
-        myText = myInputFile.read(5)
+        myText = myInputFile.read(configParam[2])
         if myText == "":
             inputLock.release()
             break
@@ -42,17 +42,19 @@ def readFile(thread):
         myThread.outputOrder+=1
         inputLock.release()
         
-        #myText = encryptBlock(myText);
+        myText = encryptBlock(myText);
 
         outputLock.acquire()
         print "outpt",thread.order ,thread.threadID, myText
-        myOutputFile.seek(thread.order*5)
+        myOutputFile.seek(thread.order*configParam[2])
         myOutputFile.write(myText)
         outputLock.release()
     
 def main():
-    configParam = []
     global keyAlphabet
+    global configParam
+    configParam = []
+    
     if len(sys.argv) == 4:
         for e in range(1,4):
             if sys.argv[e].isdigit():
