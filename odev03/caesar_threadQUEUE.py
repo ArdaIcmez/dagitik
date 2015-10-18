@@ -69,7 +69,7 @@ def main():
     try:
         global myInputFile,myOutputFile
         myInputFile = open('metin.txt','r')
-        myOutputFile = open('crypted_'+`configParam[0]`+'_'+`configParam[1]`+'_'+`configParam[2]`,'w')
+        myOutputFile = open('crypted_'+`configParam[0]`+'_'+`configParam[1]`+'_'+`configParam[2]`+".txt",'w')
     except:
         print "Opening failed"
         sys.exit()
