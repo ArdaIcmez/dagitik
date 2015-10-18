@@ -5,13 +5,12 @@ outputLock = threading.Lock()
 alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 class myThread (threading.Thread):
-    outputOrder = 1 
-    def __init__(self, threadID, name, order,inputfile):
+    outputOrder = 0
+    def __init__(self, threadID, name, order):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
         self.order = order
-        self.inputfile = inputfile
     def run(self):
         readFile(self)
 
@@ -34,14 +33,21 @@ def encryptBlock(text):
 
 def readFile(thread):
     while True:
-        myText = thread.inputfile.read(5)
+        inputLock.acquire()
+        myText = myInputFile.read(5)
         if myText == "":
+            inputLock.release()
             break
-        myText = encryptBlock(myText);
         thread.order = myThread.outputOrder
         myThread.outputOrder+=1
+        inputLock.release()
+        
+        #myText = encryptBlock(myText);
+
         outputLock.acquire()
         print "outpt",thread.order ,thread.threadID, myText
+        myOutputFile.seek(thread.order*5)
+        myOutputFile.write(myText)
         outputLock.release()
     
 def main():
@@ -68,12 +74,12 @@ def main():
     myThreads = []
     keyAlphabet = createKey(configParam[0],alphabet)
     for i in range(0,configParam[1]):
-        thread = myThread(i,"Thread0"+`i`,0,myInputFile)
+        thread = myThread(i,"Thread0"+`i`,0)
         thread.start()
         myThreads.append(thread)
     for t in myThreads:
         t.join()
-    myFile.close()
+    myInputFile.close()
     myOutputFile.close()
 if __name__ == '__main__':
     main()
