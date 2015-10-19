@@ -45,7 +45,7 @@ def readFile(thread):
         myText = encryptBlock(myText);
 
         outputLock.acquire()
-	#Waiting for other threads version is implemented in caesar_fork.py, wanted to try something different here.
+	#Waiting for other threads version is implemented in caesar_fork.py, wanted to try something different.
         myOutputFile.seek(thread.order*configParam[2])
         myOutputFile.write(myText)
         outputLock.release()
