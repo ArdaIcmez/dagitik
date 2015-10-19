@@ -1,19 +1,7 @@
-import sys, profile, threading, Queue, time
+from multiprocessing import Process, Queue, Lock, Array
+import sys, profile
 
-queueLock = threading.Lock()
-outputLock = threading.Lock()
 alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-class myThread (threading.Thread):
-    outputOrder = 0
-    def __init__(self, threadID, name, order,q):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.order = order
-        self.q = q
-    def run(self):
-        readFile(self)
 
 def createKey():
     encryptedText = ""
@@ -32,30 +20,44 @@ def encryptBlock(text):
             encryptedText += i
     return encryptedText
 
-def readFile(thread):
-    while not exitFlag:
-        queueLock.acquire()
-        if not workQueue.empty():
-            data = thread.q.get()
-            thread.order = myThread.outputOrder
-            myThread.outputOrder+=1
-            queueLock.release()
+def readFile(arr,q,ql,ol):
+    myOrder = 0
+    print arr[0],arr[1]
+    arr[0]+=1
+    arr[1]+=1
+    while not q.empty():
+        print "whiledayim"
+        ql.acquire()
+        if not q.empty():
+            print "ifteyim"
+            data = q.get()
+            myOrder = arr[0]
+            arr[0]+=1
+            ql.release()
             data = encryptBlock(data);
-            outputLock.acquire()
-            myOutputFile.seek(thread.order*configParam[2])
+            while arr[1] != myOrder:
+                print "ordergelmedi"
+                pass
+            ol.acquire()
+            print "yazdim",data
+            
             myOutputFile.write(data)
-            outputLock.release()
+            arr[1] += 1
+            ol.release()
         else:
-            queueLock.release()
-    
+            ql.release()
+            print "else"
 def main():
     global keyAlphabet
     global configParam
-    global workQueue
     global exitFlag
+    queueLock = Lock()
+    outputLock = Lock()
     exitFlag=0
     configParam = []
-    workQueue = Queue.Queue()
+    workQueue = Queue()
+    myProcesses= []
+    orderArray = Array('i',[0,0])
     if len(sys.argv) == 4:
         for e in range(1,4):
             if sys.argv[e].isdigit():
@@ -74,29 +76,29 @@ def main():
         print "Opening failed"
         sys.exit()
     
-    myThreads = []
     keyAlphabet = createKey()
     
     queueLock.acquire()
+    print "aldim locku"
     myText = myInputFile.read(configParam[2])
     while myText != "":
         workQueue.put(myText)
         myText = myInputFile.read(configParam[2])
+    print "biraktim"
     queueLock.release()
-    
+
     for i in range(0,configParam[1]):
-        thread = myThread(i,"Thread0"+`i`,0,workQueue)
-        thread.start()
-        myThreads.append(thread)
+        process = Process(target=readFile,args=(orderArray,workQueue,queueLock,outputLock))
+        process.start()
+        myProcesses.append(process)
         
-    while not workQueue.empty():
-        pass
     
-    exitFlag = 1
-    for t in myThreads:
-        t.join()
+    for p in myProcesses:
+        p.join()
+
     myInputFile.close()
     myOutputFile.close()
+    
 if __name__ == '__main__':
     main()
     #profile.run('print main(); print')
