@@ -20,44 +20,35 @@ def encryptBlock(text):
             encryptedText += i
     return encryptedText
 
-def readFile(arr,q,ql,ol):
+def readFile(arr,q,ql,ol,outp):
     myOrder = 0
-    print arr[0],arr[1]
-    arr[0]+=1
-    arr[1]+=1
     while not q.empty():
-        print "whiledayim"
         ql.acquire()
         if not q.empty():
-            print "ifteyim"
             data = q.get()
             myOrder = arr[0]
             arr[0]+=1
             ql.release()
             data = encryptBlock(data);
             while arr[1] != myOrder:
-                print "ordergelmedi"
                 pass
             ol.acquire()
-            print "yazdim",data
-            
-            myOutputFile.write(data)
+            with open(outp,'a') as outpFile:
+                outpFile.write(data)
+                outpFile.close()
             arr[1] += 1
             ol.release()
         else:
             ql.release()
-            print "else"
 def main():
-    global keyAlphabet
-    global configParam
-    global exitFlag
+    global keyAlphabet, configParam, myOutputFile
     queueLock = Lock()
     outputLock = Lock()
-    exitFlag=0
     configParam = []
     workQueue = Queue()
     myProcesses= []
     orderArray = Array('i',[0,0])
+    
     if len(sys.argv) == 4:
         for e in range(1,4):
             if sys.argv[e].isdigit():
@@ -68,10 +59,14 @@ def main():
     else:
         print "usage : <filename> <shift> <numThread> <length> "
         sys.exit()
+    
+    myOutputFile = 'crypted_'+`configParam[0]`+'_'+`configParam[1]`+'_'+`configParam[2]`+".txt"
+    
     try:
-        global myInputFile,myOutputFile
+        global myInputFile
         myInputFile = open('metin.txt','r')
-        myOutputFile = open('crypted_'+`configParam[0]`+'_'+`configParam[1]`+'_'+`configParam[2]`+".txt",'w')
+        (open(myOutputFile,'w')).close()
+
     except:
         print "Opening failed"
         sys.exit()
@@ -79,16 +74,14 @@ def main():
     keyAlphabet = createKey()
     
     queueLock.acquire()
-    print "aldim locku"
     myText = myInputFile.read(configParam[2])
     while myText != "":
         workQueue.put(myText)
         myText = myInputFile.read(configParam[2])
-    print "biraktim"
     queueLock.release()
 
     for i in range(0,configParam[1]):
-        process = Process(target=readFile,args=(orderArray,workQueue,queueLock,outputLock))
+        process = Process(target=readFile,args=(orderArray,workQueue,queueLock,outputLock,myOutputFile))
         process.start()
         myProcesses.append(process)
         
@@ -97,7 +90,6 @@ def main():
         p.join()
 
     myInputFile.close()
-    myOutputFile.close()
     
 if __name__ == '__main__':
     main()
