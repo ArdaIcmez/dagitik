@@ -1,15 +1,23 @@
-import random,socket,sys
-import time as tm
+import random as rm
+import socket,sys
+import threading
+import time
 class myThread (threading.Thread):
     def __init__(self, threadID, clientSocket, clientAddr):
         threading.Thread.__init__(self)
-    self.threadID = threadID
-    self.clientSocket = clientSocket
-    self.clientAddr = clientAddr
+        self.threadID = threadID
+        self.clientSocket = clientSocket
+        self.clientAddr = clientAddr
     def run(self):
-        self.clientSocket.settimeout(randint(8,20))
-        self.clientSocket.recv(1024)
-        print tm.localtime()
+        while True:
+            try:
+                self.clientSocket.settimeout(rm.randint(8,20))
+                self.clientSocket.recv(1024)
+                self.clientSocket.send("OK")
+            except:
+                localTime = time.asctime( time.localtime(time.time()) )
+                self.clientSocket.send(localTime)
+                print localTime
 
 s = socket.socket()
 host = "localhost"
