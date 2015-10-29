@@ -9,15 +9,19 @@ class myThread (threading.Thread):
         self.clientSocket = clientSocket
         self.clientAddr = clientAddr
     def run(self):
-        while True:
+        exitFlag = 0
+        while not exitFlag:
             try:
                 self.clientSocket.settimeout(rm.randint(8,20))
-                self.clientSocket.recv(1024)
-                self.clientSocket.send("OK")
+                msgRecieved = self.clientSocket.recv(1024)
+                if msgRecieved.upper() == "END":
+                    exitFlag=1
+                    self.clientSocket.send("Goodbye", self.clientAddr)
+                else:
+                    self.clientSocket.send("Message Recieved", self.clientAddr)
             except:
                 localTime = time.asctime( time.localtime(time.time()) )
                 self.clientSocket.send(localTime)
-                print localTime
 
 s = socket.socket()
 host = "localhost"
