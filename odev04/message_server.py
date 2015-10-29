@@ -24,6 +24,7 @@ class myThread (threading.Thread):
                 localTime = "Hello, current time is :" + time.asctime( time.localtime(time.time()) )
                 self.clientSocket.send(localTime)
         print "thread closed", self.clientAddr
+        return
 s = socket.socket()
 host = "localhost"
 port = 12345

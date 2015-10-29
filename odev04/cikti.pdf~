@@ -1,0 +1,24 @@
+arda@arda-Linux:~/Desktop/DagitikKodlari/dagitik/odev04$ python message_server.py 
+Waiting for connection
+Got a connection from  ('127.0.0.1', 55597)
+Waiting for connection
+Got a connection from  ('127.0.0.1', 55598)
+Waiting for connection
+thread closed ('127.0.0.1', 55598)
+thread closed ('127.0.0.1', 55597)
+
+arda@arda-Linux:~/Desktop/DagitikKodlari/dagitik/odev04$ python message_client.py 
+Hello, current time is :Thu Oct 29 12:54:17 2015
+merhaba
+Message Recieved, ('127.0.0.1', 55598)
+nasisin
+Message Recieved, ('127.0.0.1', 55598)
+ok
+Message Recieved, ('127.0.0.1', 55598)
+Hello, current time is :Thu Oct 29 12:54:49 2015
+Hello, current time is :Thu Oct 29 12:55:04 2015
+cikiyorum 
+Message Recieved, ('127.0.0.1', 55598)
+baltazor
+Don't cry because it's over. Smile because it happened.
+
