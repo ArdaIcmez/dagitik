@@ -33,10 +33,7 @@ def readFunct(myThread):
     global exitFlag
     global s
     while not exitFlag:
-        try:
-            print myThread.serverSocket.recv(1024)
-        except:
-            s.close()
+        print myThread.serverSocket.recv(1024)
 def writeFunct(myThread):
     """
         Write function designed for readThread class
