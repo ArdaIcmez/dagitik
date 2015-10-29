@@ -4,6 +4,7 @@ import random as rm
 import socket,sys
 import threading
 import time
+import signal
 class myThread (threading.Thread):
     def __init__(self, threadID, clientSocket, clientAddr):
         threading.Thread.__init__(self)
@@ -14,7 +15,7 @@ class myThread (threading.Thread):
         exitFlag = 0
         while not exitFlag:
             try:
-                self.clientSocket.settimeout(rm.randint(8,20))
+                self.clientSocket.settimeout(rm.randint(3,7))#could also use another thread to send the time
                 msgRecieved = self.clientSocket.recv(1024)
                 if msgRecieved.upper() == "BALTAZOR":
                     exitFlag=1

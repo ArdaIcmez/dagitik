@@ -3,6 +3,7 @@
 import socket
 import threading
 import random
+import sys
 global exitFlag
 exitFlag=0
 class readThread (threading.Thread):
@@ -30,9 +31,12 @@ def readFunct(myThread):
         @myThread thread variable
     """
     global exitFlag
+    global s
     while not exitFlag:
-        print myThread.serverSocket.recv(1024)
-    
+        try:
+            print myThread.serverSocket.recv(1024)
+        except:
+            s.close()
 def writeFunct(myThread):
     """
         Write function designed for readThread class
@@ -56,3 +60,5 @@ wThread = writeThread(s)
 wThread.start()
 rThread.join()
 wThread.join()
+s.close()
+sys.exit()
