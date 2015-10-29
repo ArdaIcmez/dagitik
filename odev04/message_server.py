@@ -1,3 +1,5 @@
+import random,socket,sys
+import time as tm
 class myThread (threading.Thread):
     def __init__(self, threadID, clientSocket, clientAddr):
         threading.Thread.__init__(self)
@@ -5,11 +7,9 @@ class myThread (threading.Thread):
     self.clientSocket = clientSocket
     self.clientAddr = clientAddr
     def run(self):
-        print "Starting Thread-" + str(self.threadID)
-        
-        
-        print "Ending Thread-" + str(self.threadID)
-
+        self.clientSocket.settimeout(randint(8,20))
+        self.clientSocket.recv(1024)
+        print tm.localtime()
 
 s = socket.socket()
 host = "localhost"
