@@ -1,3 +1,5 @@
+#author : Arda Icmez
+#date : 29.10.2015
 import random as rm
 import socket,sys
 import threading
@@ -16,6 +18,7 @@ class myThread (threading.Thread):
                 msgRecieved = self.clientSocket.recv(1024)
                 if msgRecieved.upper() == "BALTAZOR":
                     exitFlag=1
+                    #Server saying goodbye to the thread, kind of a handshake.
                     self.clientSocket.send("Don't cry because it's over. Smile because it happened.")
                 else:
                     myMsg = "Message Recieved, " + ''.join(str(self.clientAddr))
@@ -31,7 +34,7 @@ port = 12345
 s.bind((host, port))
 s.listen(5)
 threadCounter = 0
-threadList = []
+threadList = [] # For the next homework, ignore for this one.
 while True:
     print "Waiting for connection"
     c, addr = s.accept()
