@@ -14,15 +14,17 @@ class myThread (threading.Thread):
             try:
                 self.clientSocket.settimeout(rm.randint(8,20))
                 msgRecieved = self.clientSocket.recv(1024)
-                if msgRecieved.upper() == "END":
+                if msgRecieved.upper() == "BALTAZOR":
                     exitFlag=1
-                    self.clientSocket.send("Goodbye", self.clientAddr)
+                    self.clientSocket.send("Don't cry because it's over. Smile because it happened.")
                 else:
-                    self.clientSocket.send("Message Recieved", self.clientAddr)
+                    myMsg = "Message Recieved, " + ''.join(str(self.clientAddr))
+                    print myMsg
+                    self.clientSocket.send(myMsg)
             except:
-                localTime = time.asctime( time.localtime(time.time()) )
+                localTime = "Hello, current time is :" + time.asctime( time.localtime(time.time()) )
                 self.clientSocket.send(localTime)
-
+        print "thread closed", self.clientAddr
 s = socket.socket()
 host = "localhost"
 port = 12345

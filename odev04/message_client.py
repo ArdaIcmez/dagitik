@@ -20,17 +20,14 @@ def readFunct(myThread):
     global exitFlag
     while not exitFlag:
         print myThread.serverSocket.recv(1024)
-    print "Closing read"
     
 def writeFunct(myThread):
     global exitFlag
     while not exitFlag:
         msgToSend = raw_input()
-        print msgToSend , "HAHA"
         myThread.serverSocket.send(msgToSend)
-        if (msgToSend.upper() == "END"):
+        if (msgToSend.upper() == "BALTAZOR"):
             exitFlag = 1
-    print "Closing write"
     
 s = socket.socket()
 host = "127.0.0.1"
