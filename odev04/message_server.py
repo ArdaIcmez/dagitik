@@ -19,7 +19,6 @@ class myThread (threading.Thread):
                     self.clientSocket.send("Don't cry because it's over. Smile because it happened.")
                 else:
                     myMsg = "Message Recieved, " + ''.join(str(self.clientAddr))
-                    print myMsg
                     self.clientSocket.send(myMsg)
             except:
                 localTime = "Hello, current time is :" + time.asctime( time.localtime(time.time()) )
