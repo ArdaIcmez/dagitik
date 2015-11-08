@@ -151,7 +151,7 @@ class LoggerThread (threading.Thread):
     def log(self,message):
         # gelen mesaji zamanla beraber bastir
         t = time.ctime()
-        self.fid.write(t +": " + message)
+        self.fid.write(t +": " + message+"\n")
         self.fid.flush()
     def run(self):
         self.log("Starting " + self.name)
