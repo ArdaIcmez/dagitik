@@ -1,3 +1,5 @@
+from multiprocessing import Queue, Array
+import sys, threading
 class WriteThread (threading.Thread):
     def __init__(self, name, cSocket, address, threadQueue, logQueue ):
         threading.Thread.__init__(self)
@@ -9,25 +11,21 @@ class WriteThread (threading.Thread):
     def run(self):
         self.lQueue.put("Starting " + self.name)
         while True:
-        ...
-        ...
-        ...
+            pass
         # burasi kuyrukta sirasi gelen mesajlari
         # gondermek icin kullanilacak
         if self.threadQueue.qsize() > 0:
-        queue_message = self.threadQueue.get()
+            queue_message = self.threadQueue.get()
         # gonderilen ozel mesajsa
         if ...
-        message_to_send = "MSG " + ...
+            message_to_send = "MSG " + ...
         # genel mesajsa
         elif queue_message[1]:
-        message_to_send = "SAY " + ...
+            message_to_send = "SAY " + ...
         # hicbiri degilse sistem mesajidir
         else:
-        message_to_send = "SYS " + ...
-        ...
-        ...
-        ...
+            message_to_send = "SYS " + ...
+
         self.lQueue.put("Exiting " + self.name)
         
 class ReadThread (threading.Thread):
@@ -39,11 +37,74 @@ class ReadThread (threading.Thread):
         self.lQueue = logQueue
         self.fihrist = fihrist
         self.tQueue = threadQueue
-    def parser(self):
-    54
-    ...
-    ...
-    ...
+    def parser(self, data):
+        data = data.strip(' ')
+        # henuz login olmadiysa
+        if not self.nickname and not data[0:3] == "USR":
+            response  = "ERL"
+            self.csend(response)
+            return 0
+        # data sekli bozuksa
+        #if ...
+            
+        if data[0:3] == "USR":
+            nickname = data[4:]
+            # kullanici yoksa
+            if nickname not in self.fihrist.keys():
+                response = "HEL " + nickname
+                # fihristi guncelle
+                self.fihrist.update(...)
+                ...
+                ...
+                self.lQueue.put(self.nickname + " has joined.")
+                return 0
+            else:
+                # kullanici reddedilecek
+                response = "REJ " + nickname
+                self.csend(response)
+                ....
+                # baglantiyi kapat
+                self.csoc.close()
+                return 1
+        elif data[0:3] == "QUI":
+            response = "BYE " + self.nickname
+            ...
+            ...
+            # fihristten sil
+            ...
+            ...
+            # log gonder
+            ...
+            # baglantiyi sil
+            ...
+            ...
+        elif data[0:3] == "LSQ":
+            response = "LSA "
+            ...
+            ...
+        elif data[0:3] == "TIC":
+        ...
+        ...
+        elif data[0:3] == "SAY":
+        ...
+        ...
+        elif data[0:3] == "MSG":
+        ...
+        ...
+        ...
+            if not to_nickname in self.fihrist.keys():
+                response = "MNO"
+            else:
+                queue_message = (to_nickname, self.nickname, message)
+                # gonderilecek threadQueueyu fihristten alip icine yaz
+                self.fihrist[to_nickname].put(queue_message)
+                response = "MOK"
+            self.csend(response)
+        else:
+        # bir seye uymadiysa protokol hatasi verilecek
+            response = "ERR"
+            self.csend(response)
+            return 0
     def run(self):
         self.lQueue.put("Starting " + self.name)
         while True:
@@ -73,7 +134,6 @@ class LoggerThread (threading.Thread):
         self.name = name
         self.lQueue = logQueue
     # dosyayi appendable olarak ac
-        55
         self.fid = ...
     def log(self,message):
         # gelen mesaji zamanla beraber bastir
@@ -92,77 +152,12 @@ class LoggerThread (threading.Thread):
         self.log(to_be_logged)
         self.log("Exiting" + self.name)
         self.fid.close() 
-def parser(self, data):
-    data = data.strip()
-    # henuz login olmadiysa
-    if not self.nickname and not data[0:3] == "USR":
-        pass
-    # data sekli bozuksa
-    if ...
-    response = "ERR"
-    self.csend(response)
-    return 0
-    if data[0:3] == "USR":
-    nickname = data[4:]
-    if ...
-    # kullanici yoksa
-    response = "HEL " + nickname
-    ...
-    ...
-    # fihristi guncelle
-    self.fihrist.update(...)
-    ...
-    ...
-    self.lQueue.put(self.nickname + " has joined.")
-    return 0
-    52
-    else:
-    # kullanici reddedilecek
-    response = "REJ " + nickname
-    self.csend(response)
-    ....
-    # baglantiyi kapat
-    self.csoc.close()
-    return 1
-    elif data[0:3] == "QUI":
-    response = "BYE " + self.nickname
-    ...
-    ...
-    # fihristten sil
-    ...
-    ...
-    # log gonder
-    ...
-    # baglantiyi sil
-    ...
-    ...
-    elif data[0:3] == "LSQ":
-    response = "LSA "
-    ...
-    ...
-    elif data[0:3] == "TIC":
-    ...
-    ...
-    elif data[0:3] == "SAY":
-    ...
-    ...
-    elif data[0:3] == "MSG":
-    ...
-    ...
-    ...
-    if not to_nickname in self.fihrist.keys():
-    response = "MNO"
-    else:
-    queue_message = (to_nickname, self.nickname, message)
-    # gonderilecek threadQueueyu fihristten alip icine yaz
-    self.fihrist[to_nickname].put(queue_message)
-    response = "MOK"
-    self.csend(response)
-    else:
-    # bir seye uymadiysa protokol hatasi verilecek
-    response = "ERR"
+
 def main():
-    pass
+    global logLock
+    global fihrist
+    logLock = threading.Lock()
+    fihrist = {}
 
 if __name__ == '__main__':
     main()
