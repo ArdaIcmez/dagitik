@@ -1,4 +1,5 @@
-from multiprocessing import Queue, Array
+import Queue,time
+import socket
 import sys, threading
 class WriteThread (threading.Thread):
     def __init__(self, name, cSocket, address, threadQueue, logQueue ):
@@ -167,24 +168,23 @@ def main():
     global logLock
     global queueLock
     global fihrist
-    logLock = threading.Lock()
     logQueue = Queue.Queue()
     queueLock = threading.Lock()
     fihrist = {}
     threadCounter = 1
     logThread = LoggerThread("LoggerThread",logQueue,"cikti.txt")
+    logThread.setDaemon(True)
     logThread.start()
+    s = socket.socket()
+    host = "localhost"
+    port = 12345
+    s.bind((host, port))
+    s.listen(5)
     while True:
-        logLock.acquire()
         logQueue.put("Waiting for connection")
-        logLock.release()
         print "Waiting for connection"
-        
         c, addr = s.accept()
-        
-        logLock.acquire()
         logQueue.put("Got a connection from "+ str(addr))
-        logLock.release()
         print 'Got a connection from ', addr
         threadQueue = Queue.Queue()
         readThread = ReadThread("ReadingThread-"+`threadCounter`, c, addr,threadQueue,logQueue)
