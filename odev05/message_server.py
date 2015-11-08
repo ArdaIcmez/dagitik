@@ -11,7 +11,6 @@ class WriteThread (threading.Thread):
     def run(self):
         self.lQueue.put("Starting " + self.name)
         while True:
-            pass
         # burasi kuyrukta sirasi gelen mesajlari
         # gondermek icin kullanilacak
             if self.threadQueue.qsize() > 0:
@@ -28,7 +27,7 @@ class WriteThread (threading.Thread):
         self.lQueue.put("Exiting " + self.name)
         
 class ReadThread (threading.Thread):
-    def __init__(self, name, cSocket, address, logQueue):
+    def __init__(self, name, cSocket, address, threadQueue, logQueue):
         threading.Thread.__init__(self)
         self.name = name
         self.cSocket = cSocket
@@ -39,6 +38,7 @@ class ReadThread (threading.Thread):
     def csend(self,response):
         self.cSocket.send(response)
     def parser(self, data):
+        global queueLock
         data = data.strip('\n')
         # henuz login olmadiysa
         if not self.nickname and not data[0:3] == "USR":
@@ -59,8 +59,10 @@ class ReadThread (threading.Thread):
                 # fihristi guncelle
                 self.fihrist[nickname] = self.tQueue
                 # tell users that another person has joined to chat
+                queueLock.acquire()
                 for key in self.fihrist.keys():
                     self.fihrist[key].put((None,None,self.nickname+" has joined the chat"))
+                queueLock.release()
                 self.lQueue.put(self.nickname + " has joined.")
                 return 0
             else:
@@ -74,8 +76,10 @@ class ReadThread (threading.Thread):
             response = "BYE " + self.nickname
             self.csend(response)
             # notify other users
+            queueLock.acquire()
             for key in self.fihrist.keys():
                 self.fihrist[key].put((None,None,self.nickname+" has left the chat"))
+                queueLock.release()
             # fihristten sil
             del self.fihrist[self.nickname]
             # log gonder
@@ -88,15 +92,20 @@ class ReadThread (threading.Thread):
             for key in sorted(self.fihrist.keys()):
                 response += key
             self.csend(response)
+            return 0
         elif data[0:3] == "TIC":
             response = "BALTAZOR"
             self.csend(response)
+            return 0
         elif data[0:3] == "SAY":
             response = "SOK"
             self.csend(response)
             messageAll = data[4:]
+            queueLock.acquire()
             for key in self.fihrist.keys():
                 self.fihrist[key].put((None,self.nickname,messageAll))
+            queueLock.release()
+            return 0
         elif data[0:3] == "MSG":
             restMessage = data[4:].split(':',1)
             to_nickname=restMessage[0]
@@ -106,9 +115,12 @@ class ReadThread (threading.Thread):
             else:
                 queue_message = (to_nickname, self.nickname, message)
                 # gonderilecek threadQueueyu fihristten alip icine yaz
+                queueLock.acquire()
                 self.fihrist[to_nickname].put(queue_message)
+                queueLock.release()
                 response = "MOK"
             self.csend(response)
+            return 0
         else:
         # bir seye uymadiysa protokol hatasi verilecek
             response = "ERR"
@@ -117,40 +129,69 @@ class ReadThread (threading.Thread):
     def run(self):
         self.lQueue.put("Starting " + self.name)
         while True:
-            incoming_data = self.cSocket.recv(1024)
-            parser(incoming_data)
-
+            try:
+                self.cSocket.settimeout(10)
+                incoming_data = self.cSocket.recv(1024)
+                returnCode = parser(incoming_data)
+                if returnCode:
+                    return
+            except:
+                pass
+            
         self.lQueue.put("Exiting " + self.name)
+        return
 class LoggerThread (threading.Thread):
     def __init__(self, name, logQueue, logFileName):
         threading.Thread.__init__(self)
         self.name = name
         self.lQueue = logQueue
     # dosyayi appendable olarak ac
-        self.fid = ...
+        self.fid = open(logFileName,'a')
     def log(self,message):
         # gelen mesaji zamanla beraber bastir
         t = time.ctime()
-        self.fid.write(t + ...)
+        self.fid.write(t +": " + message)
         self.fid.flush()
     def run(self):
         self.log("Starting " + self.name)
         while True:
-    ...
-    ...
-    ...
-        # lQueue'da yeni mesaj varsa
-        # self.log() metodunu cagir
-        to_be_logged = ...
-        self.log(to_be_logged)
+            if not self.lQueue.empty():
+            # lQueue'da yeni mesaj varsa
+            # self.log() metodunu cagir
+                to_be_logged = self.lQueue.get()
+                self.log(to_be_logged)
         self.log("Exiting" + self.name)
         self.fid.close() 
 
 def main():
     global logLock
+    global queueLock
     global fihrist
     logLock = threading.Lock()
+    logQueue = Queue.Queue()
+    queueLock = threading.Lock()
     fihrist = {}
+    threadCounter = 1
+    logThread = LoggerThread("LoggerThread",logQueue,"cikti.txt")
+    logThread.start()
+    while True:
+        logLock.acquire()
+        logQueue.put("Waiting for connection")
+        logLock.release()
+        print "Waiting for connection"
+        
+        c, addr = s.accept()
+        
+        logLock.acquire()
+        logQueue.put("Got a connection from "+ str(addr))
+        logLock.release()
+        print 'Got a connection from ', addr
+        threadQueue = Queue.Queue()
+        readThread = ReadThread("ReadingThread-"+`threadCounter`, c, addr,threadQueue,logQueue)
+        writeThread = WriteThread("WritingThread-"+`threadCounter`, c, addr,threadQueue,logQueue)
+        readThread.start()
+        writeThread.start()
+        threadCounter+=1
 
 if __name__ == '__main__':
     main()
