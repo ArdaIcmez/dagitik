@@ -16,21 +16,22 @@ class WriteThread (threading.Thread):
         self.lQueue.put("Starting " + self.name)
         while not exitFlag:
             if self.tQueue.qsize() > 0:
-                queue_message = self.threadQueue.get()
-                
+                print "iceri girdim"
+                queue_message = self.tQueue.get()
+                print "Serverin gonderecegi mesaj : ", queue_message[2]
                 # gonderilen ozel mesajsa
                 if queue_message[0]:
-                    message_to_send = "MSG " + queue_message[2]
+                    message_to_send = str("MSG " + queue_message[2])
                     
                 # genel mesajsa
                 elif queue_message[1]:
-                    message_to_send = "SAY " + queue_message[2]
+                    message_to_send = str("SAY " + queue_message[2])
                     
                 # hicbiri degilse sistem mesajidir
                 else:
                     if queue_message[2][0:3] == "BYE":
                         exitFlag=1
-                    message_to_send = queue_message[2]
+                    message_to_send = str(queue_message[2])
                     
                 try:
                     self.cSocket.send(message_to_send)
@@ -52,33 +53,38 @@ class ReadThread (threading.Thread):
         self.lQueue = logQueue
         self.fihrist = fihrist
         self.tQueue = threadQueue
+        self.nickname = ""
     def parser(self, data):
-        global queueLock
-        data = data.strip('\n')
-        
+        print "parser a girdim"
+        #global queueLock
+        print "datam :", data,type(data)
+        myProtocol = data[0:3]
+        print myProtocol
         # henuz login olmadiysa
         if not self.nickname and not data[0:3] == "USR":
+            print "ilk ifteyim"
             response  = "ERL"
-            self.threadQueue.put((None,None,response))
+            self.tQueue.put((None,None,response))
             return 0
-        
-        if data[0:3] == "USR":
+        print "ilk if olmadi"
+        if myProtocol == "USR":
+            print "usr girdim"
             nickname = data[4:]
             
             # kullanici yoksa
             if nickname not in self.fihrist.keys():
                 self.nickname = nickname
                 response = "HEL " + nickname
-                self.threadQueue.put((None,None,response))
+                self.tQueue.put((None,None,response))
                 
                 # fihristi guncelle
                 self.fihrist[nickname] = self.tQueue
                 
                 # tell users that another person has joined to chat
-                queueLock.acquire()
+                #queueLock.acquire()
                 for key in self.fihrist.keys():
                     self.fihrist[key].put((None,None,"SYS "+self.nickname+" has joined the chat"))
-                queueLock.release()
+                #queueLock.release()
                 
                 self.lQueue.put(self.nickname + " has joined.")
                 return 0
@@ -86,18 +92,18 @@ class ReadThread (threading.Thread):
             else:
                 # kullanici reddedilecek
                 response = "REJ " + nickname
-                self.threadQueue.put((None,None,response))
+                self.tQueue.put((None,None,response))
                 return 1
             
-        elif data[0:3] == "QUI":
+        elif myProtocol == "QUI":
             response = "BYE " + self.nickname
-            self.threadQueue.put((None,None,response))
+            self.tQueue.put((None,None,response))
             
             # notify other users
-            queueLock.acquire()
+            #queueLock.acquire()
             for key in self.fihrist.keys():
                 self.fihrist[key].put((None,None,"SYS "+self.nickname+" has left the chat"))
-            queueLock.release()
+            #queueLock.release()
             
             # fihristten sil
             del self.fihrist[self.nickname]
@@ -105,34 +111,36 @@ class ReadThread (threading.Thread):
             self.lQueue.put(self.nickname + " has left.")
             return 1
         
-        elif data[0:3] == "LSQ":
+        elif myProtocol == "LSQ":
             response = "LSA "
             
             for key in sorted(self.fihrist.keys()):
                 response += key+":"
                 
             response = response[:-1]
-            self.threadQueue.put((None,None,response))
+            self.tQueue.put((None,None,response))
             return 0
         
-        elif data[0:3] == "TIC":
+        elif myProtocol == "TIC":
             response = "BALTAZOR"
             self.csend(response)
             return 0
         
-        elif data[0:3] == "SAY":
+        elif myProtocol == "SAY":
+            print "SAYDAYIM"
             response = "SOK"
-            self.threadQueue.put((None,None,response))
+            self.tQueue.put((None,None,response))
+            print len(self.tQueue)
             messageAll = data[4:]
-            
-            queueLock.acquire()
+            print messageAll
+            #queueLock.acquire()
             for key in self.fihrist.keys():
                 self.fihrist[key].put((None,self.nickname,messageAll))
-            queueLock.release()
+            #queueLock.release()
             
             return 0
         
-        elif data[0:3] == "MSG":
+        elif myProtocol == "MSG":
             restMessage = data[4:].split(':',1)
             to_nickname=restMessage[0]
             message = restMessage[1]
@@ -144,27 +152,29 @@ class ReadThread (threading.Thread):
                 queue_message = (to_nickname, self.nickname, message)
                 
                 # gonderilecek threadQueueyu fihristten alip icine yaz
-                queueLock.acquire()
+                #queueLock.acquire()
                 self.fihrist[to_nickname].put(queue_message)
-                queueLock.release()
+                #queueLock.release()
                 
                 response = "MOK"
-            self.threadQueue.put((None,None,response))
+            self.tQueue.put((None,None,response))
             return 0
         
         else:
         # bir seye uymadiysa protokol hatasi verilecek
+            print "elseteyim?"
             response = "ERR"
-            self.threadQueue.put((None,None,response))
+            self.tQueue.put((None,None,response))
             return 0
         
     def run(self):
         self.lQueue.put("Starting " + self.name)
         while True:
             try:
-                self.cSocket.settimeout(10)
+                print "Data bekliyorum"
                 incoming_data = self.cSocket.recv(1024)
-                returnCode = parser(incoming_data)
+                print "data geldi = ",incoming_data
+                returnCode = self.parser(incoming_data)
                 if returnCode:
                     return
             except:
@@ -191,6 +201,7 @@ class LoggerThread (threading.Thread):
             # lQueue'da yeni mesaj varsa
             # self.log() metodunu cagir
                 to_be_logged = self.lQueue.get()
+                print "loglanacak " , str(to_be_logged)
                 self.log(to_be_logged)
         self.log("Exiting" + self.name)
         self.fid.close() 

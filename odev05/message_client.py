@@ -14,8 +14,8 @@ class ReadThread (threading.Thread):
         self.threadQueue = threadQueue
         self.app = app
         self.exitFlag = exitFlag
-    def incoming_parser(self, wholeData):
-        data = wholeData[2]
+    def incoming_parser(self, data):
+        print "incomingdeyim, datam : ",data
         if len(data) == 0:
             return
         if len(data) > 3 and not data[3] == " ":
@@ -28,19 +28,19 @@ class ReadThread (threading.Thread):
             self.csoc.close()
             return
         if data[0:3] == "ERL":
-            response = "Nick not registered"
-            app.cprint(response)
+            response = "-Server- Nick not registered"
+            self.app.cprint(response)
             return
         if data[0:3] == "HEL":
-            response = "Registered as <"+self.nickname+">"
+            response = "-Server- Registered as <"+self.nickname+">"
             self.app.cprint(response)
             return
         if data[0:3] == "REJ":
-            response = "Nickname already taken"
+            response = "-Server- Nickname already taken"
             self.app.cprint(response)
             return
         if data[0:3] == "MNO":
-            response = "No user called " + data[4:]+" in chat"
+            response = "-Server- No user called " + data[4:]+" in chat"
             self.app.cprint(response)
             return
         if data[0:3] == "MSG":
@@ -67,8 +67,9 @@ class ReadThread (threading.Thread):
     def run(self):
         while not self.exitFlag:
             try:
-                self.csoc.settimeout(20)
+                #self.csoc.settimeout(20)
                 data = self.csoc.recv(1024)
+                print "gelen data:", data
                 self.incoming_parser(data)
             except:
                 pass
@@ -126,20 +127,23 @@ class ClientDialog(QDialog):
         data = self.sender.text()
         if len(data) == 0:
             return
+        self.cprint("-Local-:" + data)
         if data[0] == "/":
-            command = data[1:5].strip(" ")
+            command = data[1:5]
             if command == "list":
                 self.threadQueue.put("LSQ")
             elif command == "quit":
                 self.threadQueue.put("QUI")
-            elif command == "msg":
+            elif command == "msg ":
                 to_nick = data.split(" ")[1]
                 message = data.split(" ")[2:] # Burada bosluksuz yazi cikaracak, a faire
-                self.threadQueue.put("MSG" + to_nick+":"+message)
+                self.threadQueue.put("MSG " + str(to_nick)+":"+str(message))
             else:
                 self.cprint("Local: Command Error.")
         else:
-            self.threadQueue.put("SAY " + data)
+            response = str("SAY "+data)
+            self.threadQueue.put(response)
+            print data, "soyledim"
         self.sender.clear()
     def run(self):
         '''Run the app and show the main form. '''
@@ -159,19 +163,15 @@ def main():
         print host,port
         s = socket.socket()
         s.connect((host,port))
-        print "burdayim"
         sendQueue = Queue.Queue()
         app = ClientDialog(sendQueue)
-        print "ekran basladi"
         # start threads
         rt = ReadThread("ReadThread", s, sendQueue, app,0)
         rt.setDaemon(True)
         rt.start()
-        print "read basladi"
         wt = WriteThread("WriteThread", s, sendQueue)
         wt.setDaemon(True)
         wt.start()
-        print "write"
         app.run()
         
         rt.join()
