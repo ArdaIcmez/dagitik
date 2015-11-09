@@ -63,13 +63,12 @@ class ReadThread (threading.Thread):
             msg = "-Server- Registered nicks: "
             for i in splitted:
                 msg += i + ","
-                msg = msg[:-1]
+            msg = msg[:-1]
             self.app.cprint(msg)
             return
     def run(self):
         while not self.exitFlag:
             try:
-                #self.csoc.settimeout(20)
                 data = self.csoc.recv(1024)
                 print "gelen data:", data
                 self.incoming_parser(data)
@@ -129,7 +128,7 @@ class ClientDialog(QDialog):
         data = self.sender.text()
         if len(data) == 0:
             return
-        self.cprint("-Local-:" + data)
+        self.cprint("-Local-: " + data)
         if data[0] == "/":
             command = data[1:5]
             if command == "list":

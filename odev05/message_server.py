@@ -60,13 +60,10 @@ class ReadThread (threading.Thread):
         print myProtocol
         # henuz login olmadiysa
         if not self.nickname and not data[0:3] == "USR":
-            print "ilk ifteyim"
             response  = "ERL"
             self.tQueue.put((None,None,response))
             return 0
-        print "ilk if olmadi"
         if myProtocol == "USR":
-            print "usr girdim"
             nickname = data[4:]
             
             # kullanici yoksa
@@ -91,7 +88,7 @@ class ReadThread (threading.Thread):
                 # kullanici reddedilecek
                 response = "REJ " + nickname
                 self.tQueue.put((None,None,response))
-                return 1
+                return 0
             
         elif myProtocol == "QUI":
             response = "BYE " + self.nickname
@@ -143,7 +140,7 @@ class ReadThread (threading.Thread):
             message = restMessage[1]
             
             if to_nickname not in self.fihrist.keys():
-                response = "MNO" + to_nickname
+                response = "MNO " + to_nickname
                 
             else:
                 queue_message = (to_nickname, self.nickname, message)
@@ -185,7 +182,7 @@ class LoggerThread (threading.Thread):
         self.name = name
         self.lQueue = logQueue
     # dosyayi appendable olarak ac
-        self.fid = open(logFileName,'a')
+        self.fid = open(logFileName,'w')
     def log(self,message):
         # gelen mesaji zamanla beraber bastir
         t = time.ctime()
