@@ -6,15 +6,64 @@ from PyQt4.QtGui import *
 import Queue
 import time
 class ReadThread (threading.Thread):
-    def __init__(self, name, csoc, threadQueue, app):
+    def __init__(self, name, csoc, threadQueue, app, exitFlag):
         threading.Thread.__init__(self)
         self.name = name
         self.csoc = csoc
         self.nickname = ""
         self.threadQueue = threadQueue
         self.app = app
-    def incoming_parser(self, data):
-        pass
+        self.exitFlag = exitFlag
+    def incoming_parser(self, wholeData):
+        data = wholeData[2]
+        if len(data) == 0:
+            return
+        if len(data) > 3 and not data[3] == " ":
+            response = "ERR"
+            self.csoc.send(response)
+            return
+        rest = data[4:]
+        if data[0:3] == "BYE":
+            self.exitFlag = 1
+            self.csoc.close()
+            return
+        if data[0:3] == "ERL":
+            response = "Nick not registered"
+            app.cprint(response)
+            return
+        if data[0:3] == "HEL":
+            response = "Registered as <"+self.nickname+">"
+            self.app.cprint(response)
+            return
+        if data[0:3] == "REJ":
+            response = "Nickname already taken"
+            self.app.cprint(response)
+            return
+        if data[0:3] == "MNO":
+            response = "No user called " + data[4:]+" in chat"
+            self.app.cprint(response)
+            return
+        if data[0:3] == "MSG":
+            response = wholeData[1] + "(private) : " + data[4:]
+            self.app.cprint(response)
+            return
+        if data[0:3] == "SAY":
+            response = wholeData[1] + ": " + data[4:]
+            self.app.cprint(response)
+            return 
+        if data[0:3] == "SYS":
+            response = "-Server- " + data[4:]
+            self.app.cprint(response)
+            return
+        if data[0:3] == "LSA":
+            rest = data[4:]
+            splitted = rest.split(":")
+            msg = "-Server- Registered nicks: "
+            for i in splitted:
+                msg += i + ","
+                msg = msg[:-1]
+            self.app.cprint(msg)
+            return
     def run(self):
         while True:
             data = self.csoc.recv(1024)
