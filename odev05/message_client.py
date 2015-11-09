@@ -65,9 +65,13 @@ class ReadThread (threading.Thread):
             self.app.cprint(msg)
             return
     def run(self):
-        while True:
-            data = self.csoc.recv(1024)
-            pass
+        while not exitFlag:
+            try:
+                self.csoc.settimeout(20)
+                data = self.csoc.recv(1024)
+                self.incoming_parser(data)
+            except:
+                pass
 class WriteThread (threading.Thread):
     def __init__(self, name, csoc, threadQueue):
         threading.Thread.__init__(self)
@@ -75,15 +79,17 @@ class WriteThread (threading.Thread):
         self.csoc = csoc
         self.threadQueue = threadQueue
     def run(self):
-        pass
-        if self.threadQueue.qsize() > 0:
-            queue_message = self.threadQueue.get()
-            pass
-            try:
-                self.csoc.send(queue_message)
-            except socket.error:
-                self.csoc.close()
-                break
+        exitFlag = 0
+        while True:
+            if self.threadQueue.qsize() > 0:
+                queue_message = self.threadQueue.get()
+                try:
+                    self.csoc.send(queue_message)
+                except socket.error:
+                    self.csoc.close()
+                    break
+                if queue_message == "QUI":
+                    break
 class ClientDialog(QDialog):
     ''' An example application for PyQt. Instantiate
     and call the run method to run. '''
@@ -115,7 +121,6 @@ class ClientDialog(QDialog):
         # Use the vertical layout for the current window
         self.setLayout(self.vbox)
     def cprint(self, data):
-        pass
         self.channel.append(data)
     def outgoing_parser(self):
         data = self.sender.text()
@@ -150,16 +155,28 @@ def main():
         print "usage : <filename> <Host IP> <Host Port> "
         sys.exit()        
     # connect to the server
-    s = socket.socket()
-    s.connect((host,port))
-    sendQueue = Queue.Queue()
-    app = ClientDialog(sendQueue)
-    # start threads
-    rt = ReadThread("ReadThread", s, sendQueue, app)
-    rt.start()
-    wt = WriteThread("WriteThread", s, sendQueue)
-    wt.start()
-    app.run()
-    rt.join()
-    wt.join()
-    s.close()
+    try:
+        s = socket.socket()
+        s.connect((host,port))
+        sendQueue = Queue.Queue()
+        app = ClientDialog(sendQueue)
+        
+        # start threads
+        rt = ReadThread("ReadThread", s, sendQueue, app)
+        rt.setDaemon(True)
+        rt.start()
+        
+        wt = WriteThread("WriteThread", s, sendQueue)
+        wt.setDaemon(True)
+        wt.start()
+        
+        app.run()
+        
+        rt.join()
+        wt.join()
+        
+        s.close()
+    except:
+        alert ("patladin")
+if __name__ == '__main__':
+    main()
