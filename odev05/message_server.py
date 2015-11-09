@@ -16,24 +16,23 @@ class WriteThread (threading.Thread):
         self.lQueue.put("Starting " + self.name)
         while not exitFlag:
             if self.tQueue.qsize() > 0:
-                print "iceri girdim"
+                print "server write iceri girdim"
                 queue_message = self.tQueue.get()
-                print "Serverin gonderecegi mesaj : ", queue_message[2]
                 # gonderilen ozel mesajsa
                 if queue_message[0]:
-                    message_to_send = str("MSG " + queue_message[2])
+                    message_to_send = str("MSG "+"<"+queue_message[1]+">(Private)"+": "+ queue_message[2])
                     
                 # genel mesajsa
                 elif queue_message[1]:
-                    message_to_send = str("SAY " + queue_message[2])
+                    message_to_send = str("SAY "+"<"+queue_message[1]+">"+": " + queue_message[2])
                     
                 # hicbiri degilse sistem mesajidir
                 else:
                     if queue_message[2][0:3] == "BYE":
                         exitFlag=1
                     message_to_send = str(queue_message[2])
-                    
                 try:
+                    print "Serverin gonderecegi mesaj : ", message_to_send
                     self.cSocket.send(message_to_send)
                 except socket.error:
                     self.cSocket.close()
@@ -55,7 +54,6 @@ class ReadThread (threading.Thread):
         self.tQueue = threadQueue
         self.nickname = ""
     def parser(self, data):
-        print "parser a girdim"
         #global queueLock
         print "datam :", data,type(data)
         myProtocol = data[0:3]
@@ -130,7 +128,6 @@ class ReadThread (threading.Thread):
             print "SAYDAYIM"
             response = "SOK"
             self.tQueue.put((None,None,response))
-            print len(self.tQueue)
             messageAll = data[4:]
             print messageAll
             #queueLock.acquire()

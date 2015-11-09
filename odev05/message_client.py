@@ -23,6 +23,7 @@ class ReadThread (threading.Thread):
             self.csoc.send(response)
             return
         rest = data[4:]
+        print "message itself : ",data
         if data[0:3] == "BYE":
             self.exitFlag = 1
             self.csoc.close()
@@ -32,8 +33,9 @@ class ReadThread (threading.Thread):
             self.app.cprint(response)
             return
         if data[0:3] == "HEL":
-            response = "-Server- Registered as <"+self.nickname+">"
+            response = "-Server- Registered as <"+data[4:]+">"
             self.app.cprint(response)
+            self.nickname = data[4:]
             return
         if data[0:3] == "REJ":
             response = "-Server- Nickname already taken"
@@ -44,11 +46,11 @@ class ReadThread (threading.Thread):
             self.app.cprint(response)
             return
         if data[0:3] == "MSG":
-            response = wholeData[1] + "(private) : " + data[4:]
+            response = rest
             self.app.cprint(response)
             return
         if data[0:3] == "SAY":
-            response = wholeData[1] + ": " + data[4:]
+            response = rest
             self.app.cprint(response)
             return 
         if data[0:3] == "SYS":
@@ -135,9 +137,15 @@ class ClientDialog(QDialog):
             elif command == "quit":
                 self.threadQueue.put("QUI")
             elif command == "msg ":
-                to_nick = data.split(" ")[1]
-                message = data.split(" ")[2:] # Burada bosluksuz yazi cikaracak, a faire
-                self.threadQueue.put("MSG " + str(to_nick)+":"+str(message))
+                source = data.split(" ",1)
+                to_nick = source[1]
+                message = source[2] # Burada bosluksuz yazi cikaracak, a faire
+                myMsg = "MSG " + str(to_nick)+":"+str(message)
+                self.threadQueue.put(myMsg)
+            elif command == "nick":
+                myMsg = "USR "+str(data.split(" ",1)[1])
+                print data.split(" ",1)[1]," USR GONDERISI"
+                self.threadQueue.put(myMsg)
             else:
                 self.cprint("Local: Command Error.")
         else:
