@@ -118,7 +118,24 @@ class ClientDialog(QDialog):
         pass
         self.channel.append(data)
     def outgoing_parser(self):
-        pass
+        data = self.sender.text()
+        if len(data) == 0:
+            return
+        if data[0] == "/":
+            command = data[1:5].strip(" ")
+            if command == "list":
+                self.threadQueue.put("LSQ")
+            elif command == "quit":
+                self.threadQueue.put("QUI")
+            elif command == "msg":
+                to_nick = data.split(" ")[1]
+                message = data.split(" ")[2:] # Burada bosluksuz yazi cikaracak, a faire
+                self.threadQueue.put("MSG" + to_nick+":"+message)
+            else:
+                self.cprint("Local: Command Error.")
+        else:
+            self.threadQueue.put("SAY " + data)
+        self.sender.clear()
     def run(self):
         '''Run the app and show the main form. '''
         self.show()
@@ -135,7 +152,7 @@ def main():
     # connect to the server
     s = socket.socket()
     s.connect((host,port))
-    sendQueue = ...
+    sendQueue = Queue.Queue()
     app = ClientDialog(sendQueue)
     # start threads
     rt = ReadThread("ReadThread", s, sendQueue, app)
