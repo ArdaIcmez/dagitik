@@ -15,8 +15,7 @@ class WriteThread (threading.Thread):
         exitFlag = 0
         self.lQueue.put("Starting " + self.name)
         while not exitFlag:
-            if self.threadQueue.qsize() > 0:
-                
+            if self.tQueue.qsize() > 0:
                 queue_message = self.threadQueue.get()
                 
                 # gonderilen ozel mesajsa
@@ -33,9 +32,15 @@ class WriteThread (threading.Thread):
                         exitFlag=1
                     message_to_send = queue_message[2]
                     
-                self.cSocket.send(message_to_send)
-        
-        self.cSocket.close()        
+                try:
+                    self.cSocket.send(message_to_send)
+                except socket.error:
+                    self.cSocket.close()
+                    break
+        try:
+            self.cSocket.close()
+        except:
+            pass
         self.lQueue.put("Exiting " + self.name)
         
 class ReadThread (threading.Thread):

@@ -65,7 +65,7 @@ class ReadThread (threading.Thread):
             self.app.cprint(msg)
             return
     def run(self):
-        while not exitFlag:
+        while not self.exitFlag:
             try:
                 self.csoc.settimeout(20)
                 data = self.csoc.recv(1024)
@@ -146,30 +146,32 @@ class ClientDialog(QDialog):
         self.show()
         self.qt_app.exec_()
 def main():
-    host = None
-    port = None
-    if len(sys.argv) == 3:
-        host = sys.argv[1]
+    host = "localhost"
+    port = 12345
+    """if len(sys.argv) == 3:
+        host = str(sys.argv[1])
         port = sys.argv[2]
     else:
         print "usage : <filename> <Host IP> <Host Port> "
-        sys.exit()        
+        sys.exit()        """
     # connect to the server
     try:
+        print host,port
         s = socket.socket()
         s.connect((host,port))
+        print "burdayim"
         sendQueue = Queue.Queue()
         app = ClientDialog(sendQueue)
-        
+        print "ekran basladi"
         # start threads
-        rt = ReadThread("ReadThread", s, sendQueue, app)
+        rt = ReadThread("ReadThread", s, sendQueue, app,0)
         rt.setDaemon(True)
         rt.start()
-        
+        print "read basladi"
         wt = WriteThread("WriteThread", s, sendQueue)
         wt.setDaemon(True)
         wt.start()
-        
+        print "write"
         app.run()
         
         rt.join()
@@ -177,6 +179,6 @@ def main():
         
         s.close()
     except:
-        alert ("patladin")
+        print "patladin"
 if __name__ == '__main__':
     main()
