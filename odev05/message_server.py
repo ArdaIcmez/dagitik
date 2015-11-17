@@ -20,11 +20,11 @@ class WriteThread (threading.Thread):
                 queue_message = self.tQueue.get()
                 # gonderilen ozel mesajsa
                 if queue_message[0]:
-                    message_to_send = str("MSG "+"<"+queue_message[1]+">(Private)"+": "+ queue_message[2])
+                    message_to_send = str("MSG "+queue_message[1]+ ":" + queue_message[2])
                     
                 # genel mesajsa
                 elif queue_message[1]:
-                    message_to_send = str("SAY "+"<"+queue_message[1]+">"+": " + queue_message[2])
+                    message_to_send = str("SAY "+queue_message[1]+ ":" + queue_message[2])
                     
                 # hicbiri degilse sistem mesajidir
                 else:
@@ -35,6 +35,7 @@ class WriteThread (threading.Thread):
                     print "Serverin gonderecegi mesaj : ", message_to_send
                     self.cSocket.send(message_to_send)
                 except socket.error:
+                    self.lQueue.put("Socket problem in "+self.name)
                     self.cSocket.close()
                     break
         try:
@@ -63,7 +64,7 @@ class ReadThread (threading.Thread):
             response  = "ERL"
             self.tQueue.put((None,None,response))
             return 0
-        if myProtocol == "USR":
+        if myProtocol == "USR" and not self.nickname:
             nickname = data[4:]
             
             # kullanici yoksa
@@ -117,7 +118,7 @@ class ReadThread (threading.Thread):
             return 0
         
         elif myProtocol == "TIC":
-            response = "BALTAZOR"
+            response = "TOC"
             self.csend(response)
             return 0
         
@@ -156,7 +157,6 @@ class ReadThread (threading.Thread):
         
         else:
         # bir seye uymadiysa protokol hatasi verilecek
-            print "elseteyim?"
             response = "ERR"
             self.tQueue.put((None,None,response))
             return 0
@@ -170,7 +170,7 @@ class ReadThread (threading.Thread):
                 print "data geldi = ",incoming_data
                 returnCode = self.parser(incoming_data)
                 if returnCode:
-                    return
+                    break
             except:
                 pass
             
@@ -195,7 +195,6 @@ class LoggerThread (threading.Thread):
             # lQueue'da yeni mesaj varsa
             # self.log() metodunu cagir
                 to_be_logged = self.lQueue.get()
-                print "loglanacak " , str(to_be_logged)
                 self.log(to_be_logged)
         self.log("Exiting" + self.name)
         self.fid.close() 

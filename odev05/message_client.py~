@@ -46,25 +46,18 @@ class ReadThread (threading.Thread):
             self.app.cprint(response)
             return
         if data[0:3] == "MSG":
-            print rest
-            usrName = str(rest.split(":",1)[0])
-            restMessage = str(rest.split(":",1)[1])
-            response = "<"+usrName+"> : "+restMessage
-            #response = rest TEK harfli nickname lerde sikinti cikarttiginda direk response olarak rest 
+            response = rest
             self.app.cprint(response)
             return
         if data[0:3] == "SAY":
-            usrName = str(rest.split(":",1)[0])
-            restMessage = str(rest.split(":",1)[1])
-            response = "<"+usrName+"> : "+restMessage
-            #response = rest TEK harfli nickname lerde sikinti cikarttiginda direk response
+            response = rest
             self.app.cprint(response)
             return 
         if data[0:3] == "TIC":
             response = "TOC"
             self.csoc.send(response)
             return
-        if data[0:3] == "SYS":
+	if data[0:3] == "SYS":
             response = "-Server- " + data[4:]
             self.app.cprint(response)
             return
@@ -97,7 +90,6 @@ class WriteThread (threading.Thread):
             if self.threadQueue.qsize() > 0:
                 queue_message = self.threadQueue.get()
                 try:
-                    print "servera gonderilecek : " , queue_message
                     self.csoc.send(queue_message)
                 except socket.error:
                     self.csoc.close()
@@ -148,14 +140,9 @@ class ClientDialog(QDialog):
             elif command == "quit":
                 self.threadQueue.put("QUI")
             elif command == "msg ":
-                data = str(data)
-                source = data.split(" ",2)
-                message = None
+                source = data.split(" ",1)
                 to_nick = source[1]
-                if len(source)>2:
-                    message = source[2] # Burada bosluksuz yazi cikaracak, a faire
-                else:
-                    message = " "
+                message = source[2] # Burada bosluksuz yazi cikaracak, a faire
                 myMsg = "MSG " + str(to_nick)+":"+str(message)
                 self.threadQueue.put(myMsg)
             elif command == "nick":
@@ -174,15 +161,14 @@ class ClientDialog(QDialog):
         self.show()
         self.qt_app.exec_()
 def main():
-    host = None
-    port = None
-    if len(sys.argv) == 3:
+    host = "localhost"
+    port = 12345
+    """if len(sys.argv) == 3:
         host = str(sys.argv[1])
-        port = int(sys.argv[2])
-        print host, type(host),port,type(port)
+        port = sys.argv[2]
     else:
         print "usage : <filename> <Host IP> <Host Port> "
-        sys.exit()
+        sys.exit()        """
     # connect to the server
     try:
         print host,port
