@@ -106,6 +106,7 @@ class imGui(QMainWindow):
         self.ui.boxFunction.addItem("GrayScale")
         self.ui.boxFunction.addItem("SobelFilter")
 
+        # connect buttons
         self.ui.buttonLoadImage.clicked.connect(self.loadImagePressed)
         self.ui.buttonResetImage.clicked.connect(self.resetImagePressed)
         self.ui.buttonStartProcess.clicked.connect(self.startProcess)
