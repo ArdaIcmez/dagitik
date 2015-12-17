@@ -64,13 +64,12 @@ class WorkerThread (threading.Thread):
                     + 2* patch[index1]\
                     + 1* patch[index1 + 1]
 
-                newMessage[index0] = math.sqrt(temp0**2 + temp1**2)
-
+                newMessage[index0] = int(math.sqrt(temp0**2 + temp1**2))
                 # apply the threshold parameter
-                if newMessage[index0] > threshold:
-                    newMessage[index0] = 255
-                else:
-                    newMessage[index0] = 0
+                # if newMessage[index0] > threshold:
+                #     newMessage[index0] = 255
+                # else:
+                #     newMessage[index0] = 0
         return (header, newMessage)
 
 
@@ -174,12 +173,12 @@ class imGui(QMainWindow):
     def updateImage(self):
         # update the visual of the image with the new processed image
         if self.processed:
-            multiplier = float(self.processed.size().height())/float(self.ui.imageView.size().height())
-
-            if self.processed.size().width() - multiplier * self.ui.imageView.size().width() > 0:
-                self.frameScaled = self.processed.scaledToHeight(self.ui.imageView.size().height())
+            multiplierh = float(self.processed.size().height())/float(self.ui.imageView.size().height())
+            multiplierw = float(self.processed.size().width())/float(self.ui.imageView.size().width())
+            if multiplierh > multiplierw:
+                self.frameScaled = self.processed.scaledToHeight(self.ui.imageView.size().height() -2 )
             else:
-                self.frameScaled = self.processed.scaledToWidth(self.ui.imageView.size().width())
+                self.frameScaled = self.processed.scaledToWidth(self.ui.imageView.size().width() - 2 )
 
             self.imageScene.addPixmap(QPixmap.fromImage(self.frameScaled))
             self.ui.imageView.setScene(self.imageScene)
