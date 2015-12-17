@@ -8,6 +8,7 @@ import threading
 import Queue
 import numpy as np
 import time
+import math
 
 def rgb2gray(rgbint):
     # convert the 32 bit color into 8-bit grayscale
@@ -47,13 +48,23 @@ class WorkerThread (threading.Thread):
                 index0 = j * self.patchsize + i # top line index
                 index1 = (j+1) * self.patchsize + i # same line index
                 index1r = (j-1) * self.patchsize + i # bottom line index
-                newMessage[index0] = \
+                temp0 = \
                     + 1* patch[index1r - 1] \
                     - 1* patch[index1r + 1] \
                     + 2* patch[index0 - 1] \
                     - 2* patch[index0 + 1] \
                     + 1* patch[index1 - 1] \
                     - 1* patch[index1 + 1]
+
+                temp1 = \
+                    - 1* patch[index1r - 1] \
+                    - 2* patch[index1r]\
+                    - 1* patch[index1r + 1] \
+                    + 1* patch[index1 - 1] \
+                    + 2* patch[index1]\
+                    + 1* patch[index1 + 1]
+
+                newMessage[index0] = math.sqrt(temp0**2 + temp1**2)
 
                 # apply the threshold parameter
                 if newMessage[index0] > threshold:
