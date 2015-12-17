@@ -132,6 +132,8 @@ class imGui(QMainWindow):
 
         self.perms = None
 
+        self.sceneObject = None
+
     def loadImagePressed(self):
         # load the image from a file into a QImage object
         imageFile = QFileDialog.getOpenFileName(self,
@@ -176,13 +178,15 @@ class imGui(QMainWindow):
             multiplierh = float(self.processed.size().height())/float(self.ui.imageView.size().height())
             multiplierw = float(self.processed.size().width())/float(self.ui.imageView.size().width())
             if multiplierh > multiplierw:
-                self.frameScaled = self.processed.scaledToHeight(self.ui.imageView.size().height() -2 )
+                self.frameScaled = self.processed.scaledToHeight(self.ui.imageView.size().height() - 5 )
             else:
-                self.frameScaled = self.processed.scaledToWidth(self.ui.imageView.size().width() - 2 )
+                self.frameScaled = self.processed.scaledToWidth(self.ui.imageView.size().width() - 5 )
 
-            self.imageScene.addPixmap(QPixmap.fromImage(self.frameScaled))
-            self.ui.imageView.setScene(self.imageScene)
+            if self.sceneObject:
+                self.imageScene.removeItem(self.sceneObject)
+            self.sceneObject = self.imageScene.addPixmap(QPixmap.fromImage(self.frameScaled))
             self.imageScene.update()
+            self.ui.imageView.setScene(self.imageScene)
 
     def serializePatch(self, x, y, offset = 0):
         # serializes the patch and prepares the message data

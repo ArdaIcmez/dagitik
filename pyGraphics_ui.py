@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'pyGraphics.ui'
 #
-# Created: Thu Dec 17 15:42:43 2015
+# Created: Thu Dec 17 18:23:19 2015
 #      by: PyQt4 UI code generator 4.11.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -29,7 +29,7 @@ class Ui_ImageProcessor(object):
         ImageProcessor.resize(820, 504)
         self.imageView = QtGui.QGraphicsView(ImageProcessor)
         self.imageView.setGeometry(QtCore.QRect(10, 10, 800, 450))
-        self.imageView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.imageView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.imageView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.imageView.setObjectName(_fromUtf8("imageView"))
         self.buttonLoadImage = QtGui.QPushButton(ImageProcessor)
