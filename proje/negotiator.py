@@ -13,7 +13,7 @@ class ClientThread (threading.Thread):
         self.addr = addr
         self.cplLock = cplLock
         self.timeQueue = timeQueue
-        self.exitFlag=0
+        
     def clientParser(self, data):
         if len(data) == 0:
             return
@@ -24,10 +24,14 @@ class ClientThread (threading.Thread):
         
     def run(self):
         print "Starting "+self.name
-        while not exitFlag:
+        while True:
+            
+            #Server, Queue yu doldurdu
             if not self.flag.empty():
                 myFlag = self.flag.get()
-                if myFlag==1:
+                
+                #Peer'dan REGME geldi, kontrol vakti
+                if myFlag == 1:
                     try:
                         self.socket.send("HELLO")
                         self.socket.settimeout(20)
@@ -39,8 +43,12 @@ class ClientThread (threading.Thread):
                         self.timeQueue.put(1)
                     except:
                         print "Client side registering failed"
-                if myFlag ==2:
-                    self.timeQueue.put(0)
+                        
+            #UPDATE_INTERVAL kadar zaman gecti, kontrol vakti
+            if not self.timeQueue.empty():
+                timeFlag = self.timeQueue.get()
+                
+                if timeFlag == 1:
                     try:
                         self.socket.send("HELLO")
                         self.socket.settimeout(20)
@@ -53,8 +61,21 @@ class ClientThread (threading.Thread):
                                 break
                         self.cplLock.release()
                         self.timeQueue.put(1)
+                            
+                    #Cevap gelirken hata olustu veya zaman asimina ugradi(20s), atma zamani
                     except:
-                        
+                        self.cplLock.acquire()
+                        for i in range(0,len(self.cpl)):
+                            if self.cpl[i][0] == self.addr[0]:
+                                del self.cpl[i]
+                                break
+                        self.cplLock.release()
+                            
+                        #Server thread ini ve time thread ini kapanma konusunda bilgilendir
+                        self.flag.put(-1)
+                        self.timeQueue.put(-1)
+                        return
+                    
 class ServerThread (threading.Thread):
     def __init__(self, name, socket, flag, cpl, cplLock):
         threading.Thread.__init__(self)
@@ -69,23 +90,27 @@ class ServerThread (threading.Thread):
             pass
         time.sleep(.01)
         
+#UPDATE_INVERVAL kadar zaman gecmis mi kontrolu yapan thread
 class TimeThread (threading.Thread):
-    def __init__(self, name, flag):
+    def __init__(self, name,timeQueue):
         threading.Thread.__init__(self)
         self.name = name
-        self.socket = socket
-        self.flag = flag
-        self.isConnected = False
+        self.timeQueue = timeQueue
     def run(self):
         print "Starting "+self.name
         while True:
-            pass
-        time.sleep(.01)
+            if not self.timeQueue.empty():                
+                timeFlag = self.timeQueue.get()
+                if timeFlag == 1:
+                    time.sleep(UPDATE_INVERVAL)
+                    self.timeQueue.put(1)
+                elif timeFlag == -1:
+                    return
 
 def main():
     # the queue should contain no more than maxSize elements
     global UPDATE_INTERVAL
-    UPDATE_INTERVAL = 1000*60*10
+    UPDATE_INTERVAL = 60*10
     nlsize = 50
     cplLock = threading.Lock()
     conPointList = []
