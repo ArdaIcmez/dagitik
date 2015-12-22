@@ -18,10 +18,9 @@ class ClientThread (threading.Thread):
         if len(data) == 0:
             return
         if data[0:5] == "SALUT":
-            return data[6]
-        if data[0:5] == "BUBYE":
-            pass
-        
+            return str(data[6])
+        else:
+            self.socket.send("CMDER")
     def run(self):
         print "Starting "+self.name
         while True:
@@ -36,7 +35,7 @@ class ClientThread (threading.Thread):
                         self.socket.send("HELLO")
                         self.socket.settimeout(20)
                         data = self.socket.recv(1024)
-                        cType = self.clientParser(data)
+                        cType = self.clientParser(str(data))
                         self.cplLock.acquire()
                         self.cpl.append((self.addr[0],self.addr[1],time.ctime(),cType,"W"))
                         self.cplLock.release()
@@ -44,11 +43,8 @@ class ClientThread (threading.Thread):
                     except:
                         print "Client side registering failed"
                         
-            #UPDATE_INTERVAL kadar zaman gecti, kontrol vakti
-            if not self.timeQueue.empty():
-                timeFlag = self.timeQueue.get()
-                
-                if timeFlag == 1:
+                #UPDATE_INTERVAL kadar zaman gecti, kontrol vakti
+                if myFlag == 2:
                     try:
                         self.socket.send("HELLO")
                         self.socket.settimeout(20)
@@ -63,7 +59,12 @@ class ClientThread (threading.Thread):
                         self.timeQueue.put(1)
                             
                     #Cevap gelirken hata olustu veya zaman asimina ugradi(20s), atma zamani
+                    
+        #Mantiken bir negotiator un peer ile baglantiyi kopartmak istedigimiz durum = baglanamadigimiz durum
+        #Bunun icin CLOSE protokolunu gondermeyi gerektirecek bir durum var midir bilemiyorum.
                     except:
+                        #self.socket.send("CLOSE")
+                        #self.socket.recv(1024)
                         self.cplLock.acquire()
                         for i in range(0,len(self.cpl)):
                             if self.cpl[i][0] == self.addr[0]:
@@ -92,10 +93,11 @@ class ServerThread (threading.Thread):
         
 #UPDATE_INVERVAL kadar zaman gecmis mi kontrolu yapan thread
 class TimeThread (threading.Thread):
-    def __init__(self, name,timeQueue):
+    def __init__(self, name,flagQueue,timeQueue):
         threading.Thread.__init__(self)
         self.name = name
         self.timeQueue = timeQueue
+        self.flagQueue = flagQueue
     def run(self):
         print "Starting "+self.name
         while True:
@@ -103,7 +105,7 @@ class TimeThread (threading.Thread):
                 timeFlag = self.timeQueue.get()
                 if timeFlag == 1:
                     time.sleep(UPDATE_INVERVAL)
-                    self.timeQueue.put(1)
+                    self.flagQueue.put(2)
                 elif timeFlag == -1:
                     return
 
@@ -128,7 +130,7 @@ def main():
         timeQueue = Queue.Queue(3)
         serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`,c,flagQueue,conPointList,cplLock)
         clientThread = ClientThread("NegotiatorSubclient-"+`threadCounter`,c,addr,flagQueue,conPointList,cplLock,timeQueue)
-        timeThread = TimeThread("NegotiatorTimer-"+`threadCounter`,timeQueue)
+        timeThread = TimeThread("NegotiatorTimer-"+`threadCounter`,flagQueue ,timeQueue)
         serverThread.setDeamon(true)
         clientThread.setDeamon(true)
         timeThread.setDeamon(true)
