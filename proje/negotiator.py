@@ -4,10 +4,9 @@ import socket
 import Queue
 import time
 class ClientThread (threading.Thread):
-    def __init__(self, name, socket, test, cpl, cplLock):
+    def __init__(self, name, test, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
-        self.socket = socket
         self.test = test
         self.cpl = cpl
         self.cplLock = cplLock
@@ -22,34 +21,24 @@ class ClientThread (threading.Thread):
             self.cplLock.release()
         if data[0:5] == "BUBYE":
             pass
-        else:
-            self.cSocket.send("CMDER")
             
     def run(self):
         print "Starting "+self.name
         while True:
             
-            #Server, Queue yu doldurdu
+            #Check to see if there are any peers to test
             if not self.test.empty():
                 ipPort = self.test.get()
                 try:
-                    pass
+                    testSocket = socket.socket()
+                    testSocket.connect((ipPort[0],ipPort[1]))
+                    testSocket.send("HELLO")
+                    data = testSocket.recv()
+                    self.clientParser(data)
+                    testSocket.send("CLOSE")
+                    testSocket.recv()
                 except:
                     pass
-                    except:
-                        #self.socket.send("CLOSE")
-                        #self.socket.recv(1024)
-                        self.cplLock.acquire()
-                        for i in range(0,len(self.cpl)):
-                            if self.cpl[i][0] == self.addr[0]:
-                                del self.cpl[i]
-                                break
-                        self.cplLock.release()
-                            
-                        #Server thread ini ve time thread ini kapanma konusunda bilgilendir
-                        self.flag.put(-1)
-                        self.timeQueue.put(-1)
-                        return
                     
 class ServerThread (threading.Thread):
     def __init__(self, name, socket, cSocket, test, cpl, cplLock):
@@ -63,6 +52,7 @@ class ServerThread (threading.Thread):
     def serverParser(self, data):
         if len(data) == 0:
             return
+        
         if data[0:5] == "REGME":
             ipPort = data[6:].split(':')
             
@@ -85,6 +75,7 @@ class ServerThread (threading.Thread):
             self.cSocket.send("REGWA")
             self.test.put((ipPort[0],ipPort[1]))
             return
+        
         if data[0:5] == "GETNL":
             for item in cpl:
                 myConnections = str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
@@ -129,7 +120,7 @@ def main():
     #cplElement = (ip,port,time,type,status), if Status = S == send
     conPointList = []
     
-    #Opening the negotiator socket
+    #Opening the negotiator socket for server
     host = "localhost"
     port = 11112
     s = socket.socket()
