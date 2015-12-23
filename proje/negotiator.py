@@ -4,64 +4,38 @@ import socket
 import Queue
 import time
 class ClientThread (threading.Thread):
-    def __init__(self, name, socket, addr, flag, cpl, cplLock, timeQueue):
+    def __init__(self, name, socket, test, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
         self.socket = socket
-        self.flag = flag
+        self.test = test
         self.cpl = cpl
-        self.addr = addr
         self.cplLock = cplLock
         self.timeQueue = timeQueue
         
-    def clientParser(self, data):
+    def clientParser(self, data, addr):
         if len(data) == 0:
             return
         if data[0:5] == "SALUT":
-            return str(data[6])
+            self.cplLock.acquire()
+            self.cpl.append((self.addr[0],self.addr[1],time.ctime(),cType,"W"))
+            self.cplLock.release()
+        if data[0:5] == "BUBYE":
+            pass
         else:
-            self.socket.send("CMDER")
+            self.cSocket.send("CMDER")
+            
     def run(self):
         print "Starting "+self.name
         while True:
             
             #Server, Queue yu doldurdu
-            if not self.flag.empty():
-                myFlag = self.flag.get()
-                
-                #Peer'dan REGME geldi, kontrol vakti
-                if myFlag == 1:
-                    try:
-                        self.socket.send("HELLO")
-                        self.socket.settimeout(20)
-                        data = self.socket.recv(1024)
-                        cType = self.clientParser(str(data))
-                        self.cplLock.acquire()
-                        self.cpl.append((self.addr[0],self.addr[1],time.ctime(),cType,"W"))
-                        self.cplLock.release()
-                        self.timeQueue.put(1)
-                    except:
-                        print "Client side registering failed"
-                        
-                #UPDATE_INTERVAL kadar zaman gecti, kontrol vakti
-                if myFlag == 2:
-                    try:
-                        self.socket.send("HELLO")
-                        self.socket.settimeout(20)
-                        data = self.socket.recv(1024)
-                        cType = self.clientParser(data)
-                        self.cplLock.acquire()
-                        for i in range(0,len(self.cpl)):
-                            if self.cpl[i][0] == self.addr[0]:
-                                self.cpl[i][2] = time.ctime()
-                                break
-                        self.cplLock.release()
-                        self.timeQueue.put(1)
-                            
-                    #Cevap gelirken hata olustu veya zaman asimina ugradi(20s), atma zamani
-                    
-        #Mantiken bir negotiator un peer ile baglantiyi kopartmak istedigimiz durum = baglanamadigimiz durum
-        #Bunun icin CLOSE protokolunu gondermeyi gerektirecek bir durum var midir bilemiyorum.
+            if not self.test.empty():
+                ipPort = self.test.get()
+                try:
+                    pass
+                except:
+                    pass
                     except:
                         #self.socket.send("CLOSE")
                         #self.socket.recv(1024)
@@ -78,13 +52,47 @@ class ClientThread (threading.Thread):
                         return
                     
 class ServerThread (threading.Thread):
-    def __init__(self, name, socket, flag, cpl, cplLock):
+    def __init__(self, name, socket, cSocket, test, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
-        self.socket = socket
-        self.flag = flag
+        self.cSocket = cSocket
+        self.test = test
         self.cpl = cpl
         self.cplLock = cplLock
+        
+    def serverParser(self, data):
+        if len(data) == 0:
+            return
+        if data[0:5] == "REGME":
+            ipPort = data[6:].split(':')
+            
+            #ip : port has errors 
+            if((len(ipPort[1])+len(ipPort[0]))<12):
+                self.cSocket.send("REGER")
+                return
+            
+            #check to see if peer exists in CONNECT_POINT_LIST
+            cplLock.acquire()
+            for i in range(0,len(self.cpl)):
+                if (self.cpl[i][0] == ipPort[0] and self.cpl[i][1] == ipPort[1]):
+                    self.cSocket.send("REGOK "+self.cpl[i][2])
+                    self.cpl[i][3] = "S"
+                    cplLock.release()
+                    return
+            cplLock.release()
+            
+            #Peer does not exist in CPL, time to test
+            self.cSocket.send("REGWA")
+            self.test.put((ipPort[0],ipPort[1]))
+            return
+        if data[0:5] == "GETNL":
+            for item in cpl:
+                myConnections = str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
+            self.cSocket.send("NLIST BEGIN\n"+myConnections+"NLIST END")
+            
+        else:
+            self.cSocket.send("CMDER")
+    
     def run(self):
         print "Starting "+self.name
         while True:
@@ -110,26 +118,38 @@ class TimeThread (threading.Thread):
                     return
 
 def main():
-    # the queue should contain no more than maxSize elements
+    
     global UPDATE_INTERVAL
     UPDATE_INTERVAL = 60*10
     nlsize = 50
+    
+    #Lists are not thread safe, need to add lock
     cplLock = threading.Lock()
+    
+    #cplElement = (ip,port,time,type,status), if Status = S == send
     conPointList = []
+    
+    #Opening the negotiator socket
     host = "localhost"
     port = 11112
     s = socket.socket()
     s.bind((host, port))
     s.listen(5)
+    
+    
     threadQueue = Queue.Queue()
+    
+    #For client to test connections
+    testQueue = Queue.Queue()
+    
     threadCounter = 1
+    
+    clientThread = ClientThread("NegotiatorClient", s, testQueue,conPointList,cplLock)
     while True:
         print "Waiting connection"
         c, addr = s.accept()
-        flagQueue = Queue.Queue(3)
-        timeQueue = Queue.Queue(3)
-        serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`,c,flagQueue,conPointList,cplLock)
-        clientThread = ClientThread("NegotiatorSubclient-"+`threadCounter`,c,addr,flagQueue,conPointList,cplLock,timeQueue)
+        
+        serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, socket, c,testQueue,conPointList,cplLock)
         timeThread = TimeThread("NegotiatorTimer-"+`threadCounter`,flagQueue ,timeQueue)
         serverThread.setDaemon(True)
         clientThread.setDaemon(True)
