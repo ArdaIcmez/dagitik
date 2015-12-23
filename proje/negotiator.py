@@ -28,15 +28,16 @@ class ClientThread (threading.Thread):
             
             #Check to see if there are any peers to test
             if not self.test.empty():
+                print "queue ya birseyler girdi"
                 ipPort = self.test.get()
                 try:
                     testSocket = socket.socket()
                     testSocket.connect((ipPort[0],ipPort[1]))
                     testSocket.send("HELLO")
-                    data = testSocket.recv()
+                    data = testSocket.recv(1024)
                     self.clientParser(data)
                     testSocket.send("CLOSE")
-                    testSocket.recv()
+                    testSocket.recv(1024)
                     
                 #Did not receive a response or something went wrong, do nothing
                 except:
@@ -57,29 +58,31 @@ class ServerThread (threading.Thread):
         
         if data[0:5] == "REGME":
             ipPort = data[6:].split(':')
-            
+            print "REGME ile gelen ip port ikilisi : ", ipPort
             #ip : port has errors 
-            if((len(ipPort[1])+len(ipPort[0]))<12):
+            if((len(ipPort[0]))<5):
                 self.cSocket.send("REGER")
                 return
             
             #check to see if peer exists in CONNECT_POINT_LIST
-            cplLock.acquire()
+            self.cplLock.acquire()
             for i in range(0,len(self.cpl)):
                 if (self.cpl[i][0] == ipPort[0] and self.cpl[i][1] == ipPort[1]):
                     self.cSocket.send("REGOK "+self.cpl[i][2])
                     self.cpl[i][3] = "S"
                     cplLock.release()
                     return
-            cplLock.release()
+            self.cplLock.release()
             
             #Peer does not exist in CPL, time to test
             self.cSocket.send("REGWA")
             self.test.put((ipPort[0],ipPort[1]))
+            print "putladiklarim : ", ipPort[0],ipPort[1] 
             return
         
         if data[0:5] == "GETNL":
-            for item in cpl:
+            myConnections = "deneme\n"
+            for item in self.cpl:
                 myConnections = str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
             self.cSocket.send("NLIST BEGIN\n"+myConnections+"NLIST END")
             
@@ -89,7 +92,7 @@ class ServerThread (threading.Thread):
     def run(self):
         print "Starting "+self.name
         while True:
-            data = self.cSocket.recv()
+            data = self.cSocket.recv(1024)
             self.serverParser(data)
         
 #UPDATE_INVERVAL kadar zaman gecmis mi kontrolu yapan thread
@@ -141,7 +144,6 @@ def main():
     clientThread.setDaemon(True)
     clientThread.start()
     while True:
-        print "Waiting connection"
         c, addr = s.accept()
         serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, c,testQueue,conPointList,cplLock)
         serverThread.setDaemon(True)
