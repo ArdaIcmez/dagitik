@@ -10,12 +10,12 @@ class ClientThread (threading.Thread):
         self.test = test
         self.cpl = cpl
         self.cplLock = cplLock
-        self.timeQueue = timeQueue
         
     def clientParser(self, data, addr):
         if len(data) == 0:
             return
         if data[0:5] == "SALUT":
+            cType = data[6]
             self.cplLock.acquire()
             self.cpl.append((self.addr[0],self.addr[1],time.ctime(),cType,"W"))
             self.cplLock.release()
@@ -37,11 +37,13 @@ class ClientThread (threading.Thread):
                     self.clientParser(data)
                     testSocket.send("CLOSE")
                     testSocket.recv()
+                    
+                #Did not receive a response or something went wrong, do nothing
                 except:
                     pass
                     
 class ServerThread (threading.Thread):
-    def __init__(self, name, socket, cSocket, test, cpl, cplLock):
+    def __init__(self, name, cSocket, test, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
         self.cSocket = cSocket
@@ -87,8 +89,8 @@ class ServerThread (threading.Thread):
     def run(self):
         print "Starting "+self.name
         while True:
-            pass
-        time.sleep(.01)
+            data = self.cSocket.recv()
+            self.serverParser(data)
         
 #UPDATE_INVERVAL kadar zaman gecmis mi kontrolu yapan thread
 class TimeThread (threading.Thread):
@@ -135,19 +137,16 @@ def main():
     
     threadCounter = 1
     
-    clientThread = ClientThread("NegotiatorClient", s, testQueue,conPointList,cplLock)
+    clientThread = ClientThread("Negotiator Client", testQueue,conPointList,cplLock)
+    clientThread.setDaemon(True)
+    clientThread.start()
     while True:
         print "Waiting connection"
         c, addr = s.accept()
-        
-        serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, socket, c,testQueue,conPointList,cplLock)
-        timeThread = TimeThread("NegotiatorTimer-"+`threadCounter`,flagQueue ,timeQueue)
+        serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, c,testQueue,conPointList,cplLock)
         serverThread.setDaemon(True)
-        clientThread.setDaemon(True)
-        timeThread.setDaemon(True)
         serverThread.start()
-        clientThread.start()
-        timeThread.start()
+
         threadCounter+=1
         
 if __name__ == '__main__':
