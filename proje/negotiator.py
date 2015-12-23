@@ -5,6 +5,10 @@ import threading
 import socket
 import Queue
 import time
+"""
+TODO:
+-UPDATER THREAD (with UPDATE_INTERVAL)    
+"""
 class ClientThread (threading.Thread):
     def __init__(self, name, test, cpl, cplLock):
         threading.Thread.__init__(self)
@@ -19,7 +23,7 @@ class ClientThread (threading.Thread):
         if data[0:5] == "SALUT":
             cType = data[6]
             self.cplLock.acquire()
-            self.cpl.append([ip,port,time.ctime(),cType,"W"])
+            self.cpl.append([ip,port,None,cType,"W"])
             self.cplLock.release()
         if data[0:5] == "BUBYE":
             pass
@@ -53,16 +57,20 @@ class ServerThread (threading.Thread):
         self.test = test
         self.cpl = cpl
         self.cplLock = cplLock
-        
+        self.isActive = True
     def serverParser(self, data):
         if len(data) == 0:
             return
+        if data[0:5] == "CLOSE":
+            self.cSocket.send("BUBYE")
+            self.isActive = False
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT N")
             return
         if data[0:5] == "REGME":
             ipPort = data[6:].split(':')
             print "REGME ile gelen ip port ikilisi : ", ipPort
+            
             #ip : port has errors 
             if((len(ipPort[0]))<5):
                 self.cSocket.send("REGER")
@@ -72,9 +80,10 @@ class ServerThread (threading.Thread):
             self.cplLock.acquire()
             for i in range(0,len(self.cpl)):
                 if (self.cpl[i][0] == ipPort[0] and self.cpl[i][1] == ipPort[1]):
-                    self.cSocket.send("REGOK "+self.cpl[i][2])
-                    self.cpl[i][3] = "S"
+                    self.cpl[i][2] = time.ctime()
+                    self.cpl[i][4] = "S"
                     self.cplLock.release()
+                    self.cSocket.send("REGOK "+ str(self.cpl[i][2]))
                     print "Listede buldum"
                     return
             self.cplLock.release()
@@ -86,8 +95,17 @@ class ServerThread (threading.Thread):
         
         if data[0:5] == "GETNL":
             myConnections = ""
-            for item in self.cpl:
-                myConnections += str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
+            if(len(data)>6):
+                limit = int(data[6:])
+                for i in range(0,limit):
+                    if(i>len(self.cpl)):
+                        break
+                    if(self.cpl[i][4]=="S"):
+                        myConnections += str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
+            else:
+                for item in self.cpl:
+                    if(item[4]=="S"):
+                        myConnections += str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
             self.cSocket.send("NLIST BEGIN\n"+myConnections+"NLIST END")
             
         else:
@@ -95,7 +113,7 @@ class ServerThread (threading.Thread):
     
     def run(self):
         print "Starting "+self.name
-        while True:
+        while self.isActive:
             data = self.cSocket.recv(1024)
             self.serverParser(data)
         

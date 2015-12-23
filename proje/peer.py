@@ -10,7 +10,16 @@ import numpy as np
 import time
 import math
 import socket
-
+"""
+TODO:
+-UPDATER THREAD (with UPDATE_INTERVAL)
+-UPDATER THREAD (check other peers)
+-Client thread for peers
+-Worker thread implementation for Server thread
+-Protocol Implementation of client & server
+-Somehow get GUI working with other threads
+-Debug a ton
+"""
 def rgb2gray(rgbint):
     # convert the 32 bit color into 8-bit grayscale
     b = rgbint & 255
@@ -39,7 +48,7 @@ class MainThread (threading.Thread):
         negPort = 11112
         
         ip = "localhost"
-        port = 12348
+        port = 12350
         
         mySocket = socket.socket()
         mySocket.bind((ip,port))
@@ -113,7 +122,7 @@ class ServerThread (threading.Thread):
         print "Kapaniyor ", self.name
 
 
-
+#Ilk basta negotiator a baglanmak ve CPL almak icin 
 class NegClientThread (threading.Thread):
     def __init__(self, name, negIp, negPort, ip, port, cpl, cplLock):
         threading.Thread.__init__(self)
@@ -126,18 +135,41 @@ class NegClientThread (threading.Thread):
         self.cplLock = cplLock
         self.socket = socket.socket()
     def clientParser(self, data):
-        print "Peer a gelen data ", data
+        print "Peer a gelen data :", data
         if data[0:5] == "REGWA":
+            
+            #Resend registration after 5s
             time.sleep(5)
             self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
             data = self.socket.recv(1024)
+            
         if data[0:5] == "REGOK":
-            pass
+            print "REGOK GELDI :D"
+            
         if data[0:5] == "REGER":
             pass
+        
         elif data[0:11] == "NLIST BEGIN":
             myList = data[13:].split('\n')
-            print len(myList),myList[-1]
+            
+            #Remove NLIST END
+            del myList[-1]
+            
+            self.cplLock.acquire()
+            for item in myList:
+                parsed = item.split(':')
+                
+                #exists?
+                if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
+                    pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
+                #new peer
+                else:
+                    actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
+                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"W"])
+            self.cplLock.release()
+            for item in self.cpl:
+                print item
+            
     def run(self):
         print "Starting "+self.name
         self.socket.connect((str(self.negIp),int(self.negPort)))
@@ -150,7 +182,8 @@ class NegClientThread (threading.Thread):
         while True:
             time.sleep(10)
             print "Negotiator Client calisiyor"
-        
+            #self.socket.send("CLOSE")
+            #self.socket.recv(1024) To close Negotiator Server thread
 
 class WorkerThread (threading.Thread):
     def __init__(self, name, inQueue, outQueue, pLock):
