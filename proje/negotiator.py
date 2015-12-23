@@ -117,7 +117,7 @@ def main():
     cplLock = threading.Lock()
     conPointList = []
     host = "localhost"
-    port = 11111
+    port = 11112
     s = socket.socket()
     s.bind((host, port))
     s.listen(5)
@@ -131,11 +131,12 @@ def main():
         serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`,c,flagQueue,conPointList,cplLock)
         clientThread = ClientThread("NegotiatorSubclient-"+`threadCounter`,c,addr,flagQueue,conPointList,cplLock,timeQueue)
         timeThread = TimeThread("NegotiatorTimer-"+`threadCounter`,flagQueue ,timeQueue)
-        serverThread.setDeamon(true)
-        clientThread.setDeamon(true)
-        timeThread.setDeamon(true)
+        serverThread.setDaemon(True)
+        clientThread.setDaemon(True)
+        timeThread.setDaemon(True)
         serverThread.start()
         clientThread.start()
+        timeThread.start()
         threadCounter+=1
         
 if __name__ == '__main__':

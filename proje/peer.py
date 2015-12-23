@@ -1,4 +1,4 @@
-__author__ = 'serhan'
+__author__ = 'arda'
 
 from pyGraphics_ui import Ui_ImageProcessor
 from PyQt4.QtCore import *
@@ -21,6 +21,68 @@ def gray2rgb(gray):
     # convert the 8bit ro 32bit (of course the color info is lost)
     return gray * 65536 + gray * 256 + gray
 
+class SetterThread (threading.Thread):
+    def __init__(self, workQueue, processedQueue, pLock):
+        threading.Thread.__init__(self)
+        self.pQueue = processedQueue
+        self.wQueue = workQueue
+        self.pLock = pLock
+        
+    def run(self):
+        print "Starting SetterThread"
+        while True:
+            pass
+
+class ServerThread (threading.Thread):
+    def __init__(self, name, socket, addr, workQueue, processedQueue, pLock , cpl, cplLock):
+        threading.Thread.__init__(self)
+        workThreads = []
+        self.name = name
+        self.socket = socket
+        self.addr = addr
+        self.workQueue = workQueue
+        self.processedQueue = processedQueue
+        self.pLock = pLock
+    
+    def incomingParser(self, data):
+        pass
+    
+    def run(self):
+        workThreads = []
+        print "Starting "+self.name
+        while True:
+            pass
+        
+        for i in range(0,numThreads):
+            workThreads.append(WorkerThread("WorkerThread" + str(i),
+                                        workQueue,
+                                        processedQueue,
+                                        pLock))
+            workThreads[i].start()
+            
+        for a in range(0,numThreads):
+            self.workQueue.put("END")
+
+        for thread in workThreads:
+            thread.join()
+
+        time.sleep(.01)
+
+
+class ClientThread (threading.Thread):
+    def __init__(self, name, socket,  workQueue, processedQueue, flag, cpl, cplLock):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.socket = socket
+        self.flag = flag
+        self.cpl = cpl
+        self.cplLock = cplLock
+    def run(self):
+        print "Starting "+self.name
+        while True:
+            pass
+        time.sleep(.01)
+        
 
 class WorkerThread (threading.Thread):
     def __init__(self, name, inQueue, outQueue, pLock):
@@ -264,28 +326,21 @@ class imGui(QMainWindow):
 
 def main():
     # the queue should contain no more than maxSize elements
+    global UPDATE_INTERVAL
+    global numThreads
+    global maxSize
+    
+    UPDATE_INTERVAL = 60*10
     numThreads = 4
     maxSize = numThreads * 25
-    workThreads = []
-    workQueue = Queue.Queue()
+    QUEUENUM = 20
+    
+    workQueue = Queue.Queue(QUEUENUM)
     processedQueue = Queue.Queue(maxSize)
     pLock = threading.Lock()
 
-    for i in range(0,numThreads):
-        workThreads.append(WorkerThread("WorkerThread" + str(i),
-                                        workQueue,
-                                        processedQueue,
-                                        pLock))
-        workThreads[i].start()
-
     app = imGui(workQueue,processedQueue, pLock)
     app.run()
-
-    for a in range(0,numThreads):
-        workQueue.put("END")
-
-    for thread in workThreads:
-        thread.join()
-
+    
 if __name__ == '__main__':
     main()
