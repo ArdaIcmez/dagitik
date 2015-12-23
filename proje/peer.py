@@ -9,6 +9,7 @@ import Queue
 import numpy as np
 import time
 import math
+import socket
 
 def rgb2gray(rgbint):
     # convert the 32 bit color into 8-bit grayscale
@@ -21,7 +22,7 @@ def gray2rgb(gray):
     # convert the 8bit ro 32bit (of course the color info is lost)
     return gray * 65536 + gray * 256 + gray
 
-class SetterThread (threading.Thread):
+class MainThread (threading.Thread):
     def __init__(self, workQueue, processedQueue, pLock):
         threading.Thread.__init__(self)
         self.pQueue = processedQueue
@@ -29,31 +30,75 @@ class SetterThread (threading.Thread):
         self.pLock = pLock
         
     def run(self):
+        
+        print "Starting MainThread"
+        cpl = []
+        cplLock = threading.Lock()
+        
+        negIp = "localhost"
+        negPort = 11112
+        
+        ip = "localhost"
+        port = 12348
+        
+        mySocket = socket.socket()
+        mySocket.bind((ip,port))
+        mySocket.listen(5)
+        
+        try:
+            print "Socket actim, Client calistiriyorum"
+            negClient = NegClientThread("NegClient", negIp, negPort, ip, port, cpl, cplLock)
+            negClient.setDaemon(True)
+            negClient.start()
+        except:
+            print "negclient sikinti cikardi"
+        while True:
+            print "Main Thread waiting connection"
+            c, addr = mySocket.accept()
+            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock)
+            servThread.start()
+
+class AskerThread (threading.Thread):
+    def __init__(self, cpl):
+        threading.Thread.__init__(self)
+        self.cpl
+        
+    def run(self):
         print "Starting SetterThread"
         while True:
-            pass
+            if len(cpl)!=0:
+                pass
 
 class ServerThread (threading.Thread):
-    def __init__(self, name, socket, addr, workQueue, processedQueue, pLock , cpl, cplLock):
+    def __init__(self, name, cSocket, addr, workQueue, processedQueue, pLock , cpl, cplLock):
         threading.Thread.__init__(self)
         workThreads = []
         self.name = name
-        self.socket = socket
+        self.cSocket = cSocket
         self.addr = addr
         self.workQueue = workQueue
         self.processedQueue = processedQueue
         self.pLock = pLock
-    
+        self.isActive = True
+        
     def incomingParser(self, data):
-        pass
-    
+        if data[0:5] == "HELLO":
+            self.cSocket.send("SALUT P")
+            return
+        elif data[0:5] == "CLOSE":
+            self.cSocket.send("BUBYE")
+            self.isActive = False
+            return
+        else:
+            self.cSocket.send("CMDER")
+            return
     def run(self):
         workThreads = []
         print "Starting "+self.name
-        while True:
-            pass
-        
-        for i in range(0,numThreads):
+        while self.isActive:
+            data = self.cSocket.recv(1024)
+            self.incomingParser(data)
+        """for i in range(0,numThreads):
             workThreads.append(WorkerThread("WorkerThread" + str(i),
                                         workQueue,
                                         processedQueue,
@@ -64,24 +109,47 @@ class ServerThread (threading.Thread):
             self.workQueue.put("END")
 
         for thread in workThreads:
-            thread.join()
+            thread.join()"""
+        print "Kapaniyor ", self.name
 
-        time.sleep(.01)
 
 
-class ClientThread (threading.Thread):
-    def __init__(self, name, socket,  workQueue, processedQueue, flag, cpl, cplLock):
+class NegClientThread (threading.Thread):
+    def __init__(self, name, negIp, negPort, ip, port, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
-        self.socket = socket
-        self.flag = flag
+        self.negIp = negIp
+        self.negPort = negPort
+        self.ip = ip
+        self.port = port
         self.cpl = cpl
         self.cplLock = cplLock
+        self.socket = socket.socket()
+    def clientParser(self, data):
+        print "Peer a gelen data ", data
+        if data[0:5] == "REGWA":
+            time.sleep(5)
+            self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
+            data = self.socket.recv(1024)
+        if data[0:5] == "REGOK":
+            pass
+        if data[0:5] == "REGER":
+            pass
+        elif data[0:11] == "NLIST BEGIN":
+            myList = data[13:].split('\n')
+            print len(myList),myList[-1]
     def run(self):
         print "Starting "+self.name
+        self.socket.connect((str(self.negIp),int(self.negPort)))
+        self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
+        data = self.socket.recv(1024)
+        self.clientParser(data)
+        self.socket.send("GETNL")
+        data = self.socket.recv(1024)
+        self.clientParser(data)
         while True:
-            pass
-        time.sleep(.01)
+            time.sleep(10)
+            print "Negotiator Client calisiyor"
         
 
 class WorkerThread (threading.Thread):
@@ -338,9 +406,11 @@ def main():
     workQueue = Queue.Queue(QUEUENUM)
     processedQueue = Queue.Queue(maxSize)
     pLock = threading.Lock()
-
-    app = imGui(workQueue,processedQueue, pLock)
-    app.run()
+    
+    mainThread = MainThread(workQueue,processedQueue,pLock)
+    mainThread.start()
+    #app = imGui(workQueue,processedQueue, pLock)
+    #app.run()
     
 if __name__ == '__main__':
     main()

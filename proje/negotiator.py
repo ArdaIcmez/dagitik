@@ -1,3 +1,5 @@
+__author__ = 'arda'
+
 import sys
 import threading
 import socket
@@ -11,13 +13,13 @@ class ClientThread (threading.Thread):
         self.cpl = cpl
         self.cplLock = cplLock
         
-    def clientParser(self, data, addr):
+    def clientParser(self, data, ip, port):
         if len(data) == 0:
             return
         if data[0:5] == "SALUT":
             cType = data[6]
             self.cplLock.acquire()
-            self.cpl.append((self.addr[0],self.addr[1],time.ctime(),cType,"W"))
+            self.cpl.append([ip,port,time.ctime(),cType,"W"])
             self.cplLock.release()
         if data[0:5] == "BUBYE":
             pass
@@ -32,10 +34,10 @@ class ClientThread (threading.Thread):
                 ipPort = self.test.get()
                 try:
                     testSocket = socket.socket()
-                    testSocket.connect((ipPort[0],ipPort[1]))
+                    testSocket.connect((str(ipPort[0]),int(ipPort[1])))
                     testSocket.send("HELLO")
                     data = testSocket.recv(1024)
-                    self.clientParser(data)
+                    self.clientParser(data,ipPort[0],ipPort[1])
                     testSocket.send("CLOSE")
                     testSocket.recv(1024)
                     
@@ -55,7 +57,9 @@ class ServerThread (threading.Thread):
     def serverParser(self, data):
         if len(data) == 0:
             return
-        
+        if data[0:5] == "HELLO":
+            self.cSocket.send("SALUT N")
+            return
         if data[0:5] == "REGME":
             ipPort = data[6:].split(':')
             print "REGME ile gelen ip port ikilisi : ", ipPort
@@ -70,20 +74,20 @@ class ServerThread (threading.Thread):
                 if (self.cpl[i][0] == ipPort[0] and self.cpl[i][1] == ipPort[1]):
                     self.cSocket.send("REGOK "+self.cpl[i][2])
                     self.cpl[i][3] = "S"
-                    cplLock.release()
+                    self.cplLock.release()
+                    print "Listede buldum"
                     return
             self.cplLock.release()
             
             #Peer does not exist in CPL, time to test
             self.cSocket.send("REGWA")
             self.test.put((ipPort[0],ipPort[1]))
-            print "putladiklarim : ", ipPort[0],ipPort[1] 
             return
         
         if data[0:5] == "GETNL":
-            myConnections = "deneme\n"
+            myConnections = ""
             for item in self.cpl:
-                myConnections = str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
+                myConnections += str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
             self.cSocket.send("NLIST BEGIN\n"+myConnections+"NLIST END")
             
         else:
@@ -132,6 +136,8 @@ def main():
     s.bind((host, port))
     s.listen(5)
     
+    #initialise CPL with itself
+    conPointList.append([host,port,time.ctime(),"N","S"])
     
     threadQueue = Queue.Queue()
     
