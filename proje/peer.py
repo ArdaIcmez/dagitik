@@ -12,6 +12,7 @@ import math
 import socket
 """
 TODO:
+-WARNING : "S" or "W" when init?
 -UPDATER THREAD (with UPDATE_INTERVAL)
 -UPDATER THREAD (check other peers)
 -Client thread for peers
@@ -46,7 +47,7 @@ class MainThread (threading.Thread):
         
         funcList = []
         funcList.append(["GrayScale"])
-        funcList.append(["SobelFilter",8])
+        funcList.append(["SobelFilter",255])
         
         negIp = "localhost"
         negPort = 11111
@@ -66,26 +67,31 @@ class MainThread (threading.Thread):
             negClient = NegClientThread("NegClient", negIp, negPort, ip, port, cpl, cplLock)
             negClient.setDaemon(True)
             negClient.start()
-            
-            """testerThread = TesterThread("Tester Thread", testQueue,conPointList,cplLock)
-            testerThread.setDaemon(True)
-            testerThread.start()"""
         except:
             print "negclient sikinti cikardi"
+            
+        try:
+            testerThread = TesterThread("TesterThread", cpl, cplLock, testQueue)
+            testerThread.start()
+        except:
+            print "testerthread sikinti cikardi"
+            
         while True:
             print "Main Thread waiting connection"
             c, addr = mySocket.accept()
-            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock,testQueue)
+            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock,testQueue, funcList)
             servThread.start()
 
+
 #For the case when 1 Peer knows the ip and tries to connect, other does not
+
 class TesterThread (threading.Thread):
-    def __init__(self, cpl, cplLock, testQueue):
+    def __init__(self, name,cpl, cplLock, testQueue):
         threading.Thread.__init__(self)
-        self.cpl
+        self.name = name
+        self.cpl = cpl
         self.cplLock = cplLock
-        self.testQueue = testQueue
-        
+        self.testQueue = testQueue  
     def clientParser(self, data, ip, port):
         if len(data) == 0:
             return
@@ -96,15 +102,14 @@ class TesterThread (threading.Thread):
             self.cplLock.release()
         if data[0:5] == "BUBYE":
             pass
-            
     def run(self):
         print "Starting "+self.name
         while True:
-            
+
             #Check to see if there are any peers to test
-            if not self.test.empty():
+            if not self.testQueue.empty():
                 print "queue ya birseyler girdi"
-                ipPort = self.test.get()
+                ipPort = self.testQueue.get()
                 try:
                     testSocket = socket.socket()
                     testSocket.connect((str(ipPort[0]),int(ipPort[1])))
@@ -121,7 +126,7 @@ class TesterThread (threading.Thread):
                 #return
 
 class ServerThread (threading.Thread):
-    def __init__(self, name, cSocket, addr, workQueue, processedQueue, pLock , cpl, cplLock, testQueue):
+    def __init__(self, name, cSocket, addr, workQueue, processedQueue, pLock , cpl, cplLock, testQueue, funcList):
         threading.Thread.__init__(self)
         workThreads = []
         self.name = name
@@ -133,6 +138,7 @@ class ServerThread (threading.Thread):
         self.cpl = cpl
         self.cplLock = cplLock
         self.testQueue = testQueue
+        self.funcList = funcList
         self.isActive = True
         self.clIp = ""
         self.clPort = 0
@@ -200,9 +206,65 @@ class ServerThread (threading.Thread):
             self.cSocket.send("NLIST BEGIN\n"+myConnections+"NLIST END")
             
         elif data[0:5] == "FUNLS":
-            pass
+            
+            #test to see if peer is tested before
+            self.cplLock.acquire()
+            for item in self.cpl:
+                print item
+            print self.clIp, self.clPort
+            if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:  
+                self.cSocket.send("REGER")
+                return
+            self.cplLock.release()
+            
+            myFunctions = ""
+            for item in self.funcList:
+                if(len(item)==1):
+                    myFunctions += str(item[0])+":"+"0\n"
+                else:
+                    myFunctions += str(item[0]) + ":"+str(item[1])+"\n"
+            
+            print "Gonderdigim fonksiyonlar : ",myFunctions
+            
+            #Different than GETNL protocol, don't know which one is preferred
+            self.cSocket.send("FUNLI BEGIN")
+            self.cSocket.send(myFunctions)
+            self.cSocket.send("FUNLI END")
+            return
+        
         elif data[0:5] == "FUNRQ":
-            pass
+            funcName = data[6:]
+            
+            #test to see if peer is tested before
+            self.cplLock.acquire()
+            for item in self.cpl:
+                print item
+            print self.clIp, self.clPort
+            if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:  
+                self.cSocket.send("REGER")
+                return
+            self.cplLock.release()
+            
+            theFunc = ""
+            for item in self.funcList:
+                print "Aradigim func : ",funcName,"elimdeki func : ", item
+                if item[0]==funcName:
+                    if(len(item)==1):
+                        theFunc = str(item[0])+":"+"0"
+                    else:
+                        theFunc = str(item[0]) + ":"+str(item[1])
+                    self.cSocket.send("FUNYS "+theFunc)
+                    return
+            self.cSocket.send("FUNNO "+funcName)
+            return
+        elif data[0:5] == "EXERQ":
+            restData = data[6:].split(':')
+            #TODO
+            return
+        elif data[0:5] == "PATCH":
+            restData = data[6:].split(':')
+            #TODO
+            return
         else:
             self.cSocket.send("CMDER")
             return
