@@ -8,14 +8,14 @@ import threading
 import Queue
 import numpy as np
 import time
+import random
 import math
 import socket
 """
 TODO:
--WARNING : "S" or "W" when init?
+-WARNING : "S" or "W" when init? | FUNLI?? | Time check when CPL UPDATE???
 -UPDATER THREAD (with UPDATE_INTERVAL)
 -UPDATER THREAD (check other peers)
--Client thread for peers
 -Worker thread implementation for Server thread
 -Protocol Implementation of client & server
 -Somehow get GUI working with other threads
@@ -59,19 +59,19 @@ class MainThread (threading.Thread):
         mySocket.bind((ip,port))
         mySocket.listen(5)
         
-        clientCount = 1
         testQueue = Queue.Queue()
         
+        ipsPorts = (negIp,negPort,ip,port)
         try:
-            print "Socket actim, Client calistiriyorum"
-            negClient = NegClientThread("NegClient", negIp, negPort, ip, port, cpl, cplLock)
-            negClient.setDaemon(True)
-            negClient.start()
+            myClient = ClientThread("Client", ipsPorts, cpl, cplLock)
+            myClient.setDaemon(True)
+            myClient.start()
         except:
-            print "negclient sikinti cikardi"
+            print "client sikinti cikardi"
             
         try:
             testerThread = TesterThread("TesterThread", cpl, cplLock, testQueue)
+            testerThread.setDaemon(True)
             testerThread.start()
         except:
             print "testerthread sikinti cikardi"
@@ -290,14 +290,14 @@ class ServerThread (threading.Thread):
 
 
 #Ilk basta negotiator a baglanmak ve CPL almak icin 
-class NegClientThread (threading.Thread):
-    def __init__(self, name, negIp, negPort, ip, port, cpl, cplLock):
+class ClientThread (threading.Thread):
+    def __init__(self, name, ipsPorts, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
-        self.negIp = negIp
-        self.negPort = negPort
-        self.ip = ip
-        self.port = port
+        self.negIp = ipsPorts[0]
+        self.negPort = ipsPorts[1]
+        self.ip = ipsPorts[2]
+        self.port = ipsPorts[3]
         self.cpl = cpl
         self.cplLock = cplLock
         self.socket = socket.socket()
@@ -332,15 +332,54 @@ class NegClientThread (threading.Thread):
                 #exists?
                 if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
                     pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
+                    #TODO
+                    print "onceden vardi!"
                 #new peer
                 else:
+                    print "yeni ekleniyor!"
                     theTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
                     actTime = time.asctime(time.strptime(theTime, "%a %b %d %H:%M:%S %Y"))
                     self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
             self.cplLock.release()
             for item in self.cpl:
                 print item
-                
+        elif data[0:11] == "FUNLI BEGIN":
+            functions = self.socket.recv(1024)
+            print "Peer a gelen fonksiyonlar : ",functions
+            data == self.socket.recv(1024)
+            if data != "FUNLI END":
+                return
+            #TODO
+            pass
+        
+        elif data[0:5] == "FUNYS":
+            funcName = data[6:]
+            #TODO
+            pass
+        elif data[0:5] == "FUNNO":
+            #TODO
+            pass
+        
+        elif data[0:5] == "EXEOK":
+            #TODO
+            pass
+        
+        elif data[0:5] == "EXENF":
+            #TODO
+            pass
+        
+        elif data[0:5] == "EXEDS":
+            #TODO
+            pass
+        
+        elif data[0:5] == "PATCY":
+            #TODO
+            pass
+        
+        elif data[0:5] == "PATCN":
+            #TODO
+            pass
+        
     def run(self):
         print "Starting "+self.name
         self.socket.connect((str(self.negIp),int(self.negPort)))
@@ -352,68 +391,40 @@ class NegClientThread (threading.Thread):
         self.clientParser(data)
         print "Negotiator Client calisiyor"
         
-        time.sleep(10)
+        time.sleep(5)
         
         #To close Negotiator Server thread
         self.socket.send("CLOSE")
-        self.socket.recv(1024) 
+        self.socket.recv(1024)
         self.socket.close()
-        print "NegClient kapaniyor"
+        print "Negotiator ile initialisation bitti"
         
-        
-class ClientThread (threading.Thread):
-    def __init__(self, name, negIp, negPort, ip, port, cpl, cplLock):
-        threading.Thread.__init__(self)
-        self.name = name
-        self.negIp = negIp
-        self.negPort = negPort
-        self.ip = ip
-        self.port = port
-        self.cpl = cpl
-        self.cplLock = cplLock
-        self.socket = socket.socket()
-    def clientParser(self, data):
-        print "Peer a gelen data :", data
-        if data[0:5] == "REGWA":
+        while True:
             
-            #Resend registration after 5s
-            time.sleep(5)
-            self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
-            data = self.socket.recv(1024)
-            
-        if data[0:5] == "REGOK":
-            print "REGOK GELDI :D"
-            
-        if data[0:5] == "REGER":
-            print "REGER geldi", self.name
-        
-        elif data[0:11] == "NLIST BEGIN":
-            myList = data[12:].split('\n')
-            
-            #Check to see if last element is correct
-            if myList[-1] != "NLIST END":
-                return
-            
-            #Remove NLIST END
-            del myList[-1]
-            
-            self.cplLock.acquire()
-            for item in myList:
-                parsed = item.split(':')
+            # A trigger from GUI to start process
+            if True:
                 
-                #exists?
-                if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
-                    pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
-                #new peer
-                else:
-                    theTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
-                    actTime = time.asctime(time.strptime(theTime, "%a %b %d %H:%M:%S %Y"))
-                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"W"])
-            self.cplLock.release()
-            for item in self.cpl:
-                print item
-                
-                
+                #select the peer
+                if len(self.cpl) > 2:
+                    
+                    selInx = random.randint(0,len(self.cpl)-1)
+                    print "random sayim : ", selInx
+                    selected = self.cpl[selInx]
+                    while ((selected[0]==self.ip and int(selected[1])==self.port) or selected[3]=="N"):
+                        selInx = random.randint(0,len(self.cpl)-1)
+                        print "random sayim : ", selInx
+                        selected = self.cpl[selInx]
+                    self.socket = socket.socket()
+                    print "secilmis : " , selected
+                    self.socket.connect((selected[0],int(selected[1])))
+                    self.socket.send("HELLO")
+                    print "Peer to peer cevabi : ",self.socket.recv(1024)
+                    self.socket.send("REGME "+self.ip+":"+str(self.port))
+                    print "Peer to peer cevabi : ",self.socket.recv(1024)
+                    self.socket.send("CLOSE")
+                    self.socket.recv(1024)
+                    self.socket.close()
+                    return
 class WorkerThread (threading.Thread):
     def __init__(self, name, inQueue, outQueue, pLock):
         threading.Thread.__init__(self)
