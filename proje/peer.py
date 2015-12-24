@@ -32,12 +32,12 @@ def gray2rgb(gray):
     return gray * 65536 + gray * 256 + gray
 
 class MainThread (threading.Thread):
-    def __init__(self, workQueue, processedQueue, pLock):
+    def __init__(self, workQueue, processedQueue, pLock, iPort):
         threading.Thread.__init__(self)
         self.pQueue = processedQueue
         self.wQueue = workQueue
         self.pLock = pLock
-        
+        self.iPort = iPort
     def run(self):
         
         print "Starting MainThread"
@@ -45,15 +45,15 @@ class MainThread (threading.Thread):
         cplLock = threading.Lock()
         
         negIp = "localhost"
-        negPort = 11112
+        negPort = 11111
         
-        ip = "localhost"
-        port = 12350
+        ip = str(self.iPort[0])
+        port = int(self.iPort[1])
         
         mySocket = socket.socket()
         mySocket.bind((ip,port))
         mySocket.listen(5)
-        
+        clientCount = 1
         try:
             print "Socket actim, Client calistiriyorum"
             negClient = NegClientThread("NegClient", negIp, negPort, ip, port, cpl, cplLock)
@@ -68,13 +68,16 @@ class MainThread (threading.Thread):
             servThread.start()
 
 class AskerThread (threading.Thread):
-    def __init__(self, cpl):
+    def __init__(self, cpl, cplLock):
         threading.Thread.__init__(self)
         self.cpl
+        self.cplLock = cplLock
         
     def run(self):
-        print "Starting SetterThread"
+        print "Starting AskerThread"
         while True:
+            if(exitFlag == 1):
+                return
             if len(cpl)!=0:
                 pass
 
@@ -88,6 +91,8 @@ class ServerThread (threading.Thread):
         self.workQueue = workQueue
         self.processedQueue = processedQueue
         self.pLock = pLock
+        self.cpl = cpl
+        self.cplLock = cplLock
         self.isActive = True
         
     def incomingParser(self, data):
@@ -98,6 +103,52 @@ class ServerThread (threading.Thread):
             self.cSocket.send("BUBYE")
             self.isActive = False
             return
+        
+        if data[0:5] == "REGME":
+            ipPort = data[6:].split(':')
+            print "REGME ile gelen ip port ikilisi : ", ipPort
+            
+            #ip : port has errors 
+            if((len(ipPort[0]))<5):
+                self.cSocket.send("REGER")
+                return
+            
+            #check to see if peer exists in CONNECT_POINT_LIST
+            self.cplLock.acquire()
+            for i in range(0,len(self.cpl)):
+                if (self.cpl[i][0] == ipPort[0] and self.cpl[i][1] == ipPort[1]):
+                    self.cpl[i][2] = time.ctime()
+                    self.cpl[i][4] = "S"
+                    self.cplLock.release()
+                    self.cSocket.send("REGOK "+ str(self.cpl[i][2]))
+                    print "Listede buldum"
+                    return
+            self.cplLock.release()
+            
+            #Peer does not exist in CPL, time to test
+            self.cSocket.send("REGWA")
+            self.test.put((ipPort[0],ipPort[1]))
+            return
+        
+        if data[0:5] == "GETNL":
+            myConnections = ""
+            if(len(data)>6):
+                limit = int(data[6:])
+                for i in range(0,limit):
+                    if(i>len(self.cpl)):
+                        break
+                    if(self.cpl[i][4]=="S"):
+                        myConnections += str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
+            else:
+                for item in self.cpl:
+                    if(item[4]=="S"):
+                        myConnections += str(item[0])+":"+str(item[1])+":"+str(item[2])+":"+str(item[3])+"\n"
+            self.cSocket.send("NLIST BEGIN\n"+myConnections+"NLIST END")
+            
+        elif data[0:5] == "FUNLS":
+            pass
+        elif data[0:5] == "FUNRQ":
+            pass
         else:
             self.cSocket.send("CMDER")
             return
@@ -147,11 +198,10 @@ class NegClientThread (threading.Thread):
             print "REGOK GELDI :D"
             
         if data[0:5] == "REGER":
-            pass
+            print "REGER geldi", self.name
         
         elif data[0:11] == "NLIST BEGIN":
-            myList = data[13:].split('\n')
-            
+            myList = data[12:].split('\n')
             #Remove NLIST END
             del myList[-1]
             
@@ -164,12 +214,13 @@ class NegClientThread (threading.Thread):
                     pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
                 #new peer
                 else:
-                    actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
-                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"W"])
+                    theTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
+                    actTime = time.asctime(time.strptime(theTime, "%a %b %d %H:%M:%S %Y"))
+                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
             self.cplLock.release()
             for item in self.cpl:
                 print item
-            
+                
     def run(self):
         print "Starting "+self.name
         self.socket.connect((str(self.negIp),int(self.negPort)))
@@ -179,12 +230,65 @@ class NegClientThread (threading.Thread):
         self.socket.send("GETNL")
         data = self.socket.recv(1024)
         self.clientParser(data)
-        while True:
-            time.sleep(10)
-            print "Negotiator Client calisiyor"
-            #self.socket.send("CLOSE")
-            #self.socket.recv(1024) To close Negotiator Server thread
-
+        print "Negotiator Client calisiyor"
+        
+        time.sleep(10)
+        
+        #To close Negotiator Server thread
+        self.socket.send("CLOSE")
+        self.socket.recv(1024) 
+        self.socket.close()
+        print "NegClient kapaniyor"
+        
+        
+class ClientThread (threading.Thread):
+    def __init__(self, name, negIp, negPort, ip, port, cpl, cplLock):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.negIp = negIp
+        self.negPort = negPort
+        self.ip = ip
+        self.port = port
+        self.cpl = cpl
+        self.cplLock = cplLock
+        self.socket = socket.socket()
+    def clientParser(self, data):
+        print "Peer a gelen data :", data
+        if data[0:5] == "REGWA":
+            
+            #Resend registration after 5s
+            time.sleep(5)
+            self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
+            data = self.socket.recv(1024)
+            
+        if data[0:5] == "REGOK":
+            print "REGOK GELDI :D"
+            
+        if data[0:5] == "REGER":
+            print "REGER geldi", self.name
+        
+        elif data[0:11] == "NLIST BEGIN":
+            myList = data[12:].split('\n')
+            #Remove NLIST END
+            del myList[-1]
+            
+            self.cplLock.acquire()
+            for item in myList:
+                parsed = item.split(':')
+                
+                #exists?
+                if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
+                    pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
+                #new peer
+                else:
+                    theTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
+                    actTime = time.asctime(time.strptime(theTime, "%a %b %d %H:%M:%S %Y"))
+                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"W"])
+            self.cplLock.release()
+            for item in self.cpl:
+                print item
+                
+                
 class WorkerThread (threading.Thread):
     def __init__(self, name, inQueue, outQueue, pLock):
         threading.Thread.__init__(self)
@@ -430,7 +534,8 @@ def main():
     global UPDATE_INTERVAL
     global numThreads
     global maxSize
-    
+    global exitFlag
+    exitFlag = 0
     UPDATE_INTERVAL = 60*10
     numThreads = 4
     maxSize = numThreads * 25
@@ -439,8 +544,15 @@ def main():
     workQueue = Queue.Queue(QUEUENUM)
     processedQueue = Queue.Queue(maxSize)
     pLock = threading.Lock()
-    
-    mainThread = MainThread(workQueue,processedQueue,pLock)
+    iPort = []
+    if len(sys.argv) == 3:
+        iPort.append(str(sys.argv[1]))
+        iPort.append(int(sys.argv[2]))
+    else:
+        print "usage : <filename> <Peer IP> <Peer Port> "
+        sys.exit()
+        
+    mainThread = MainThread(workQueue,processedQueue,pLock,iPort)
     mainThread.start()
     #app = imGui(workQueue,processedQueue, pLock)
     #app.run()

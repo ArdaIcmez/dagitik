@@ -57,12 +57,15 @@ class ServerThread (threading.Thread):
         self.test = test
         self.cpl = cpl
         self.cplLock = cplLock
+        self.clIp = ""
+        self.clPort = 0
         self.isActive = True
     def serverParser(self, data):
         if len(data) == 0:
             return
         if data[0:5] == "CLOSE":
             self.cSocket.send("BUBYE")
+            print "Server ",self.name , "closing"
             self.isActive = False
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT N")
@@ -75,6 +78,10 @@ class ServerThread (threading.Thread):
             if((len(ipPort[0]))<5):
                 self.cSocket.send("REGER")
                 return
+            
+            #holding client ip and port information for GETNL purposes
+            self.clIp=str(ipPort[0])
+            self.clPort=int(ipPort[1])
             
             #check to see if peer exists in CONNECT_POINT_LIST
             self.cplLock.acquire()
@@ -94,6 +101,18 @@ class ServerThread (threading.Thread):
             return
         
         if data[0:5] == "GETNL":
+            
+            #test to see if peer is tested before
+            self.cplLock.acquire()
+            for item in self.cpl:
+                print item
+            print self.clIp, self.clPort
+            if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:
+                
+                self.cSocket.send("REGER")
+                return
+            self.cplLock.release()
+            
             myConnections = ""
             if(len(data)>6):
                 limit = int(data[6:])
@@ -149,7 +168,7 @@ def main():
     
     #Opening the negotiator socket for server
     host = "localhost"
-    port = 11112
+    port = 11111
     s = socket.socket()
     s.bind((host, port))
     s.listen(5)
@@ -169,7 +188,7 @@ def main():
     clientThread.start()
     while True:
         c, addr = s.accept()
-        serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, c,testQueue,conPointList,cplLock)
+        serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, c, testQueue,conPointList,cplLock)
         serverThread.setDaemon(True)
         serverThread.start()
 
