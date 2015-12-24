@@ -44,6 +44,10 @@ class MainThread (threading.Thread):
         cpl = []
         cplLock = threading.Lock()
         
+        funcList = []
+        funcList.append(["GrayScale"])
+        funcList.append(["SobelFilter",8])
+        
         negIp = "localhost"
         negPort = 11111
         
@@ -53,36 +57,71 @@ class MainThread (threading.Thread):
         mySocket = socket.socket()
         mySocket.bind((ip,port))
         mySocket.listen(5)
+        
         clientCount = 1
+        testQueue = Queue.Queue()
+        
         try:
             print "Socket actim, Client calistiriyorum"
             negClient = NegClientThread("NegClient", negIp, negPort, ip, port, cpl, cplLock)
             negClient.setDaemon(True)
             negClient.start()
+            
+            """testerThread = TesterThread("Tester Thread", testQueue,conPointList,cplLock)
+            testerThread.setDaemon(True)
+            testerThread.start()"""
         except:
             print "negclient sikinti cikardi"
         while True:
             print "Main Thread waiting connection"
             c, addr = mySocket.accept()
-            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock)
+            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock,testQueue)
             servThread.start()
 
-class AskerThread (threading.Thread):
-    def __init__(self, cpl, cplLock):
+#For the case when 1 Peer knows the ip and tries to connect, other does not
+class TesterThread (threading.Thread):
+    def __init__(self, cpl, cplLock, testQueue):
         threading.Thread.__init__(self)
         self.cpl
         self.cplLock = cplLock
+        self.testQueue = testQueue
         
+    def clientParser(self, data, ip, port):
+        if len(data) == 0:
+            return
+        if data[0:5] == "SALUT":
+            cType = data[6]
+            self.cplLock.acquire()
+            self.cpl.append([ip,port,None,cType,"W"])
+            self.cplLock.release()
+        if data[0:5] == "BUBYE":
+            pass
+            
     def run(self):
-        print "Starting AskerThread"
+        print "Starting "+self.name
         while True:
-            if(exitFlag == 1):
-                return
-            if len(cpl)!=0:
-                pass
+            
+            #Check to see if there are any peers to test
+            if not self.test.empty():
+                print "queue ya birseyler girdi"
+                ipPort = self.test.get()
+                try:
+                    testSocket = socket.socket()
+                    testSocket.connect((str(ipPort[0]),int(ipPort[1])))
+                    testSocket.send("HELLO")
+                    data = testSocket.recv(1024)
+                    self.clientParser(data,ipPort[0],ipPort[1])
+                    testSocket.send("CLOSE")
+                    testSocket.recv(1024)
+                    
+                #Did not receive a response or something went wrong, do nothing
+                except:
+                    pass
+            #if exitflag == 1:
+                #return
 
 class ServerThread (threading.Thread):
-    def __init__(self, name, cSocket, addr, workQueue, processedQueue, pLock , cpl, cplLock):
+    def __init__(self, name, cSocket, addr, workQueue, processedQueue, pLock , cpl, cplLock, testQueue):
         threading.Thread.__init__(self)
         workThreads = []
         self.name = name
@@ -93,8 +132,10 @@ class ServerThread (threading.Thread):
         self.pLock = pLock
         self.cpl = cpl
         self.cplLock = cplLock
+        self.testQueue = testQueue
         self.isActive = True
-        
+        self.clIp = ""
+        self.clPort = 0
     def incomingParser(self, data):
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT P")
@@ -113,6 +154,8 @@ class ServerThread (threading.Thread):
                 self.cSocket.send("REGER")
                 return
             
+            self.clIp = str(ipPort[0])
+            self.clPort = int(ipPort[1])
             #check to see if peer exists in CONNECT_POINT_LIST
             self.cplLock.acquire()
             for i in range(0,len(self.cpl)):
@@ -127,10 +170,21 @@ class ServerThread (threading.Thread):
             
             #Peer does not exist in CPL, time to test
             self.cSocket.send("REGWA")
-            self.test.put((ipPort[0],ipPort[1]))
+            self.testQueue.put((ipPort[0],ipPort[1]))
             return
         
         if data[0:5] == "GETNL":
+            
+            #test to see if peer is tested before
+            self.cplLock.acquire()
+            for item in self.cpl:
+                print item
+            print self.clIp, self.clPort
+            if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:  
+                self.cSocket.send("REGER")
+                return
+            self.cplLock.release()
+            
             myConnections = ""
             if(len(data)>6):
                 limit = int(data[6:])
@@ -202,6 +256,10 @@ class NegClientThread (threading.Thread):
         
         elif data[0:11] == "NLIST BEGIN":
             myList = data[12:].split('\n')
+            
+            #Check if last item is NLIST END
+            if myList[-1] != "NLIST END":
+                return
             #Remove NLIST END
             del myList[-1]
             
@@ -269,6 +327,11 @@ class ClientThread (threading.Thread):
         
         elif data[0:11] == "NLIST BEGIN":
             myList = data[12:].split('\n')
+            
+            #Check to see if last element is correct
+            if myList[-1] != "NLIST END":
+                return
+            
             #Remove NLIST END
             del myList[-1]
             

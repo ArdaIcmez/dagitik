@@ -107,8 +107,7 @@ class ServerThread (threading.Thread):
             for item in self.cpl:
                 print item
             print self.clIp, self.clPort
-            if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:
-                
+            if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:  
                 self.cSocket.send("REGER")
                 return
             self.cplLock.release()
@@ -138,22 +137,44 @@ class ServerThread (threading.Thread):
         
 #UPDATE_INVERVAL kadar zaman gecmis mi kontrolu yapan thread
 class TimeThread (threading.Thread):
-    def __init__(self, name,flagQueue,timeQueue):
+    def __init__(self, name, cpl, cplLock, ip, port):
         threading.Thread.__init__(self)
         self.name = name
-        self.timeQueue = timeQueue
-        self.flagQueue = flagQueue
+        self.cpl = cpl
+        self.cplLock = cplLock
+        self.ip = ip
+        self.port = port
     def run(self):
         print "Starting "+self.name
         while True:
-            if not self.timeQueue.empty():                
-                timeFlag = self.timeQueue.get()
-                if timeFlag == 1:
-                    time.sleep(UPDATE_INVERVAL)
-                    self.flagQueue.put(2)
-                elif timeFlag == -1:
-                    return
-
+            time.sleep(10)#20s just to test
+            delQueue = Queue.Queue()
+            for i in range(0,len(self.cpl)):
+                if(str(self.cpl[i][0])!=self.ip or int(self.cpl[i][1])!= self.port):
+                    try:
+                        testSocket = socket.socket()
+                        testSocket.settimeout(5)
+                        testSocket.connect((str(self.cpl[i][0]),int(self.cpl[i][1])))
+                        testSocket.send("HELLO")
+                        data = testSocket.recv(1024)
+                        print "test edilirken gelen data : ", data
+                        if data[0:5] == "SALUT":
+                            pass
+                        else:
+                            delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
+                        testSocket.send("CLOSE")
+                        testSocket.recv(1024)
+                    except:
+                        delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
+            while not delQueue.empty():
+                delIndex = delQueue.get()
+                for i in range(0,len(self.cpl)):
+                    if (delIndex[0]==self.cpl[i][0] and int(delIndex[1])==int(self.cpl[i][1])):
+                        print "siliyorum sunu ", self.cpl[i]
+                        del self.cpl[i]
+                        
+                        break;
+                
 def main():
     
     global UPDATE_INTERVAL
@@ -186,6 +207,9 @@ def main():
     clientThread = ClientThread("Negotiator Client", testQueue,conPointList,cplLock)
     clientThread.setDaemon(True)
     clientThread.start()
+    updateThread = TimeThread("Update Thread",conPointList,cplLock,host,port)
+    updateThread.setDaemon(True)
+    updateThread.start()
     while True:
         c, addr = s.accept()
         serverThread = ServerThread("NegotiatorSubserver-"+`threadCounter`, c, testQueue,conPointList,cplLock)
