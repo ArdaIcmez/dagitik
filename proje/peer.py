@@ -11,9 +11,10 @@ import time
 import random
 import math
 import socket
+
 """
 TODO:
--WARNING : "S" or "W" when init? | FUNLI?? | Time check when CPL UPDATE???
+-WARNING : FUNLI?? | Time check when CPL UPDATE???
 -UPDATER THREAD (with UPDATE_INTERVAL)
 -UPDATER THREAD (check other peers)
 -Worker thread implementation for Server thread
@@ -21,6 +22,7 @@ TODO:
 -Somehow get GUI working with other threads
 -Debug a ton
 """
+
 def rgb2gray(rgbint):
     # convert the 32 bit color into 8-bit grayscale
     b = rgbint & 255
@@ -33,12 +35,13 @@ def gray2rgb(gray):
     return gray * 65536 + gray * 256 + gray
 
 class MainThread (threading.Thread):
-    def __init__(self, workQueue, processedQueue, pLock, iPort):
+    def __init__(self, workQueue, processedQueue, pLock, iPort, flagQueue):
         threading.Thread.__init__(self)
         self.pQueue = processedQueue
         self.wQueue = workQueue
         self.pLock = pLock
         self.iPort = iPort
+        self.flag = flagQueue
     def run(self):
         
         print "Starting MainThread"
@@ -63,7 +66,7 @@ class MainThread (threading.Thread):
         
         ipsPorts = (negIp,negPort,ip,port)
         try:
-            myClient = ClientThread("Client", ipsPorts, cpl, cplLock)
+            myClient = NegClientThread("Client", ipsPorts, cpl, cplLock)
             myClient.setDaemon(True)
             myClient.start()
         except:
@@ -98,7 +101,7 @@ class TesterThread (threading.Thread):
         if data[0:5] == "SALUT":
             cType = data[6]
             self.cplLock.acquire()
-            self.cpl.append([ip,port,None,cType,"W"])
+            self.cpl.append([ip,port,None,cType,"S"])
             self.cplLock.release()
         if data[0:5] == "BUBYE":
             pass
@@ -290,7 +293,7 @@ class ServerThread (threading.Thread):
 
 
 #Ilk basta negotiator a baglanmak ve CPL almak icin 
-class ClientThread (threading.Thread):
+class NegClientThread (threading.Thread):
     def __init__(self, name, ipsPorts, cpl, cplLock):
         threading.Thread.__init__(self)
         self.name = name
@@ -301,6 +304,110 @@ class ClientThread (threading.Thread):
         self.cpl = cpl
         self.cplLock = cplLock
         self.socket = socket.socket()
+    def clientParser(self, data):
+        print "Peer a gelen data :", data
+        if data[0:5] == "REGWA":
+            
+            #Resend registration after 5s
+            time.sleep(5)
+            self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
+            data = self.socket.recv(1024)
+            
+        if data[0:5] == "REGOK":
+            print "REGOK GELDI "
+            
+        if data[0:5] == "REGER":
+            print "REGER geldi", self.name
+        
+        elif data[0:11] == "NLIST BEGIN":
+            myList = data[12:].split('\n')
+            
+            #Check if last item is NLIST END
+            if myList[-1] != "NLIST END":
+                return
+            #Remove NLIST END
+            del myList[-1]
+            
+            self.cplLock.acquire()
+            for item in myList:
+                parsed = item.split(':')
+                
+                #exists?
+                if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
+                    pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
+                    #TODO
+                    print "onceden vardi!"
+                #new peer
+                else:
+                    print "yeni ekleniyor!"
+                    actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
+                    print actTime
+                    #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
+                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
+            self.cplLock.release()
+            for item in self.cpl:
+                print item
+        
+    def run(self):
+        print "Starting "+self.name
+        self.socket.connect((str(self.negIp),int(self.negPort)))
+        self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
+        data = self.socket.recv(1024)
+        self.clientParser(data)
+        self.socket.send("GETNL")
+        data = self.socket.recv(1024)
+        self.clientParser(data)
+        print "Negotiator init bitti"  
+        while True:
+            time.sleep(10)
+            self.socket.send("GETNL")
+            data = self.socket.recv(1024)
+            self.clientParser(data)
+            #if exitFlag == 1:
+                #return
+class GuiListenThread (threading.Thread):
+    def __init__(self, name, ipPorts,  workQueue, processedQueue, flagQueue , cpl):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.negIp = ipPorts[0]
+        self.negPort = int(ipPorts[1])
+        self.ip = ipPorts[2]
+        self.port = int(ipPorts[3])
+        self.wQueue = workQueue
+        self.pQueue = processedQueue
+        self.flag = flagQueue
+        self.cpl = cpl
+        def run(self):
+            while True:
+                socList = []
+                if not self.flag.empty() and len(self.cpl)>2:
+                    data = self.flag.get()
+                    numThread = 0
+                    while True:
+                        rndInx= random.randint(0,len(self.cpl))
+                        if(self.cpl[rndInx][0] != self.ip and int(self.cpl[rndInx][1])!=self.port and self.cpl[rndInx][3] != "N"):
+                            try:
+                                soc = socket.socket()
+                                soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
+                                clSendThread = SendWorkThread("Sender Thread"+`numThread`,soc,self.wQueue)
+                                clRecvThread = GetProcessedThread("Getter Thread"+`numThread`, soc,self.pQueue)
+                            except:
+                                "Baglanirken sikinti cikti", self.cpl[rndInx]
+                            
+class SendWorkThread (threading.Thread):
+    def __init__(self, name, socket, workQueue):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.socket = socket
+        self.wQueue = workQueue
+        
+    def run(self):    
+class GetProcessedThread (threading.Thread):
+    def __init__(self, name, socket, processedQueue):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.socket = socket
+        self.pQueue = processedQueue
     def clientParser(self, data):
         print "Peer a gelen data :", data
         if data[0:5] == "REGWA":
@@ -337,8 +444,9 @@ class ClientThread (threading.Thread):
                 #new peer
                 else:
                     print "yeni ekleniyor!"
-                    theTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
-                    actTime = time.asctime(time.strptime(theTime, "%a %b %d %H:%M:%S %Y"))
+                    actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
+                    print actTime
+                    #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
                     self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
             self.cplLock.release()
             for item in self.cpl:
@@ -401,9 +509,9 @@ class ClientThread (threading.Thread):
         
         while True:
             
-            # A trigger from GUI to start process
-            if True:
-                
+            if not self.flag.empty():
+                print "Client flag aldi"
+                theFlag = self.flag.get()
                 #select the peer
                 if len(self.cpl) > 2:
                     
@@ -425,6 +533,7 @@ class ClientThread (threading.Thread):
                     self.socket.recv(1024)
                     self.socket.close()
                     return
+                
 class WorkerThread (threading.Thread):
     def __init__(self, name, inQueue, outQueue, pLock):
         threading.Thread.__init__(self)
@@ -498,7 +607,7 @@ class WorkerThread (threading.Thread):
             time.sleep(.01)
 
 class imGui(QMainWindow):
-    def __init__(self, workQueue, processedQueue, pLock):
+    def __init__(self, workQueue, processedQueue, pLock, flagQueue):
         self.qt_app = QApplication(sys.argv)
         QWidget.__init__(self, None)
 
@@ -514,7 +623,7 @@ class imGui(QMainWindow):
         self.imageFile = None
         self.pLock = pLock
         self.patchsize = 128
-
+        self.flag = flagQueue
         # fill combobox
         self.ui.boxFunction.addItem("GrayScale")
         self.ui.boxFunction.addItem("SobelFilter")
@@ -648,7 +757,8 @@ class imGui(QMainWindow):
     def startProcess(self):
         # randomly organizes the patches
         self.perms = list(np.random.permutation(self.numPatches))
-
+        self.flag.put(1)
+        print "Ekran flag koydu"
         # or simply orders the patches
         # self.perms = range(0,self.numPatches)
         # self.perms.reverse()
@@ -679,6 +789,7 @@ def main():
     
     workQueue = Queue.Queue(QUEUENUM)
     processedQueue = Queue.Queue(maxSize)
+    flagQueue = Queue.Queue(4)
     pLock = threading.Lock()
     iPort = []
     if len(sys.argv) == 3:
@@ -688,10 +799,10 @@ def main():
         print "usage : <filename> <Peer IP> <Peer Port> "
         sys.exit()
         
-    mainThread = MainThread(workQueue,processedQueue,pLock,iPort)
+    mainThread = MainThread(workQueue,processedQueue,pLock,iPort, flagQueue)
     mainThread.start()
-    #app = imGui(workQueue,processedQueue, pLock)
-    #app.run()
+    app = imGui(workQueue,processedQueue, pLock, flagQueue)
+    app.run()
     
 if __name__ == '__main__':
     main()
