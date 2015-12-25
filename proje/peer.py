@@ -31,11 +31,10 @@ def gray2rgb(gray):
     return gray * 65536 + gray * 256 + gray
 
 class MainThread (threading.Thread):
-    def __init__(self, workQueue, processedQueue, pLock, iPort):
+    def __init__(self, workQueue, processedQueue, iPort):
         threading.Thread.__init__(self)
         self.pQueue = processedQueue
         self.wQueue = workQueue
-        self.pLock = pLock
         self.iPort = iPort
         
     def run(self):
@@ -75,19 +74,20 @@ class MainThread (threading.Thread):
         except:
             print "testerthread sikinti cikardi"
         try:
-            guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
+            """guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
             guiListener.setDaemon(True)
             guiListener.start()
-            print "buyuk ihtimal calisti"
+            print "buyuk ihtimal calisti"""
         except:
             print "guilistener sikinti cikardi"
-        while True:
+        global mainFlag
+        while mainFlag:
             print "Peer server side waiting connection"
             c, addr = mySocket.accept()
-            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock,testQueue, funcList)
+            servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,cpl,cplLock,testQueue, funcList)
             servThread.start()
-
-
+        print "Main thread kapaniyor!"
+    
 #For the case when 1 Peer knows the ip and tries to connect, other does not
 class TesterThread (threading.Thread):
     def __init__(self, name,cpl, cplLock, testQueue):
@@ -130,7 +130,7 @@ class TesterThread (threading.Thread):
                 #return
 
 class ServerThread (threading.Thread):
-    def __init__(self, name, cSocket, addr, workQueue, processedQueue, pLock , cpl, cplLock, testQueue, funcList):
+    def __init__(self, name, cSocket, addr, workQueue, processedQueue, cpl, cplLock, testQueue, funcList):
         threading.Thread.__init__(self)
         workThreads = []
         self.name = name
@@ -138,7 +138,6 @@ class ServerThread (threading.Thread):
         self.addr = addr
         self.workQueue = workQueue
         self.processedQueue = processedQueue
-        self.pLock = pLock
         self.cpl = cpl
         self.cplLock = cplLock
         self.testQueue = testQueue
@@ -346,12 +345,9 @@ class NegClientThread (threading.Thread):
                 if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
                     pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
                     #TODO
-                    print "onceden vardi!"
                 #new peer
                 else:
-                    print "yeni ekleniyor!"
                     actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
-                    print actTime
                     #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
                     self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
             self.cplLock.release()
@@ -542,17 +538,22 @@ class WorkerThread (threading.Thread):
                     newMessage[index0] = 0
         return (header, newMessage)
 
-
     def run(self):
         print self.name + ": Starting."
+        outMessage = ""
         if str(message[0][0]) == "SobelFilter":
             outMessage = self.filterSobel(message[0][1], message[1],self.threshold)
         elif str(message[0][0]) == "GrayScale":
             outMessage = self.convertGray(message[0][1], message[1])
-        self.outQueue.put(outMessage)
-
+        strMsg = ""
+        for item in outMessage[1]:
+            strMsg += str(item)+","
+            
+        message = str(outMessage[0][1])+":"+str(outMessage[0][0])+":"+strMsg
+        self.cSocket.send("PATCH "+message)
+        
 class imGui(QMainWindow):
-    def __init__(self, workQueue, processedQueue, pLock):
+    def __init__(self, workQueue, processedQueue):
         self.qt_app = QApplication(sys.argv)
         QWidget.__init__(self, None)
 
@@ -566,7 +567,6 @@ class imGui(QMainWindow):
         self.processed = None
         self.frameScaled = None
         self.imageFile = None
-        self.pLock = pLock
         self.patchsize = 128
         # fill combobox
         self.ui.boxFunction.addItem("GrayScale")
@@ -724,6 +724,8 @@ def main():
     global numThreads
     global maxSize
     global exitFlag
+    global mainFlag
+    mainFlag = True
     exitFlag = 0
     UPDATE_INTERVAL = 60*10
     numThreads = 4
@@ -732,7 +734,6 @@ def main():
     
     workQueue = Queue.Queue(QUEUENUM)
     processedQueue = Queue.Queue(maxSize)
-    pLock = threading.Lock()
     iPort = []
     if len(sys.argv) == 3:
         iPort.append(str(sys.argv[1]))
@@ -741,10 +742,10 @@ def main():
         print "usage : <filename> <Peer IP> <Peer Port> "
         sys.exit()
         
-    mainThread = MainThread(workQueue,processedQueue,pLock,iPort)
+    mainThread = MainThread(workQueue,processedQueue,iPort)
     mainThread.start()
-    app = imGui(workQueue,processedQueue, pLock)
+    app = imGui(workQueue,processedQueue)
     app.run()
-    
+    mainFlag = False
 if __name__ == '__main__':
     main()
