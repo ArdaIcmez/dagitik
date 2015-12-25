@@ -35,13 +35,13 @@ def gray2rgb(gray):
     return gray * 65536 + gray * 256 + gray
 
 class MainThread (threading.Thread):
-    def __init__(self, workQueue, processedQueue, pLock, iPort, flagQueue):
+    def __init__(self, workQueue, processedQueue, pLock, iPort):
         threading.Thread.__init__(self)
         self.pQueue = processedQueue
         self.wQueue = workQueue
         self.pLock = pLock
         self.iPort = iPort
-        self.flag = flagQueue
+        
     def run(self):
         
         print "Starting MainThread"
@@ -78,16 +78,21 @@ class MainThread (threading.Thread):
             testerThread.start()
         except:
             print "testerthread sikinti cikardi"
-            
+        try:
+            guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
+            guiListener.setDaemon(True)
+            guiListener.start()
+            print "buyuk ihtimal calisti"
+        except:
+            print "guilistener sikinti cikardi"
         while True:
-            print "Main Thread waiting connection"
+            print "Peer server side waiting connection"
             c, addr = mySocket.accept()
             servThread = ServerThread("Server Thread",c,addr,self.wQueue,self.pQueue,self.pLock,cpl,cplLock,testQueue, funcList)
             servThread.start()
 
 
 #For the case when 1 Peer knows the ip and tries to connect, other does not
-
 class TesterThread (threading.Thread):
     def __init__(self, name,cpl, cplLock, testQueue):
         threading.Thread.__init__(self)
@@ -365,8 +370,9 @@ class NegClientThread (threading.Thread):
             self.clientParser(data)
             #if exitFlag == 1:
                 #return
-class GuiListenThread (threading.Thread):
-    def __init__(self, name, ipPorts,  workQueue, processedQueue, flagQueue , cpl):
+                
+class GuiListenThread (threading.Thread): 
+    def __init__(self, name, ipPorts, workQueue, processedQueue, cpl):
         threading.Thread.__init__(self)
         self.name = name
         self.negIp = ipPorts[0]
@@ -375,165 +381,112 @@ class GuiListenThread (threading.Thread):
         self.port = int(ipPorts[3])
         self.wQueue = workQueue
         self.pQueue = processedQueue
-        self.flag = flagQueue
         self.cpl = cpl
-        def run(self):
-            while True:
-                socList = []
-                if not self.flag.empty() and len(self.cpl)>2:
-                    data = self.flag.get()
-                    numThread = 0
-                    while True:
-                        rndInx= random.randint(0,len(self.cpl))
-                        if(self.cpl[rndInx][0] != self.ip and int(self.cpl[rndInx][1])!=self.port and self.cpl[rndInx][3] != "N"):
-                            try:
-                                soc = socket.socket()
-                                soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
-                                clSendThread = SendWorkThread("Sender Thread"+`numThread`,soc,self.wQueue)
-                                clRecvThread = GetProcessedThread("Getter Thread"+`numThread`, soc,self.pQueue)
-                            except:
-                                "Baglanirken sikinti cikti", self.cpl[rndInx]
-                            
+    def run(self):
+        print "starting ", self.name
+        while True:
+            socList = []
+            if (not self.wQueue.empty()) and len(self.cpl)>2:
+                print "Is geldi"
+                global NUMCON
+                NUMCON = 0
+                while NUMCON<10:
+                    rndInx= random.randint(0,len(self.cpl))
+                    if(self.cpl[rndInx][0] != self.ip and int(self.cpl[rndInx][1])!=self.port and self.cpl[rndInx][3] != "N"):
+                        print "Baglanacak thread buldum"
+                        try:
+                            soc = socket.socket()
+                            soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
+                            socList.append()
+                            flagQueue = Queue.Queue()
+                            clSendThread = SendWorkThread("Sender Thread"+`NUMCON`,soc,self.wQueue, flagQueue)
+                            clRecvThread = GetProcessedThread("Getter Thread"+`NUMCON`, soc,self.pQueue, flagQueue)
+                            NUMCON+=1
+                        except:
+                            "Baglanirken sikinti cikti", self.cpl[rndInx]
+                
 class SendWorkThread (threading.Thread):
-    def __init__(self, name, socket, workQueue):
+    def __init__(self, name, socket, workQueue, flagQueue):
         threading.Thread.__init__(self)
         self.name = name
         self.socket = socket
         self.wQueue = workQueue
-        
-    def run(self):    
+        self.treshold = 128
+    def prepareMsg(self,data):
+        patch =""
+        for item in data[1]:
+            patch+=str(item)+","
+        patch = patch[:-1]
+        myMsg = "EXERQ "+data[0][0]+":"+str(self.treshold)+":"+data[0][1][0]+":"+data[0][1][1]+":"+patch
+        return message
+    def run(self):
+        data = self.wQueue.get()
+        message = prepareMsg(data)
+        self.socket.send("FUNRQ "+str(data[0][0]))
+        time.sleep(2)
+        while True:
+            if not self.flagQueue.empty():
+                flag = flagQueue.get()
+                if flag == -1:
+                    print "Baglantida sikinti cikti", self.name
+                elif flag == 1:
+                    print "is bitti yani patch geldi"
+                return
+            try:
+                self.socket.sendall(message)
+            except:
+                print "Baglantida sikinti cikti", self.name
+
+            time.sleep(5)
+            
 class GetProcessedThread (threading.Thread):
-    def __init__(self, name, socket, processedQueue):
+    def __init__(self, name, socket, processedQueue, flagQueue):
         threading.Thread.__init__(self)
         self.name = name
         self.socket = socket
         self.pQueue = processedQueue
+        self.flagQueue = flagQueue
+        self.isActive = True
     def clientParser(self, data):
-        print "Peer a gelen data :", data
-        if data[0:5] == "REGWA":
-            
-            #Resend registration after 5s
-            time.sleep(5)
-            self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
-            data = self.socket.recv(1024)
-            
-        if data[0:5] == "REGOK":
-            print "REGOK GELDI :D"
-            
-        if data[0:5] == "REGER":
-            print "REGER geldi", self.name
+        print "PeerServer - PeerClient gelen data :", data
         
-        elif data[0:11] == "NLIST BEGIN":
-            myList = data[12:].split('\n')
-            
-            #Check if last item is NLIST END
-            if myList[-1] != "NLIST END":
-                return
-            #Remove NLIST END
-            del myList[-1]
-            
-            self.cplLock.acquire()
-            for item in myList:
-                parsed = item.split(':')
-                
-                #exists?
-                if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
-                    pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
-                    #TODO
-                    print "onceden vardi!"
-                #new peer
-                else:
-                    print "yeni ekleniyor!"
-                    actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
-                    print actTime
-                    #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
-                    self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
-            self.cplLock.release()
-            for item in self.cpl:
-                print item
-        elif data[0:11] == "FUNLI BEGIN":
+        #Basically, FUNLI BEGIN and FUNYS does nothing here
+        if data[0:11] == "FUNLI BEGIN":
             functions = self.socket.recv(1024)
             print "Peer a gelen fonksiyonlar : ",functions
             data == self.socket.recv(1024)
             if data != "FUNLI END":
                 return
-            #TODO
-            pass
-        
+            return    
         elif data[0:5] == "FUNYS":
             funcName = data[6:]
-            #TODO
-            pass
+            return
         elif data[0:5] == "FUNNO":
-            #TODO
-            pass
-        
-        elif data[0:5] == "EXEOK":
-            #TODO
-            pass
-        
-        elif data[0:5] == "EXENF":
-            #TODO
-            pass
-        
+            self.flagQueue.put(-1)
+            self.isActive = False
+            return   
         elif data[0:5] == "EXEDS":
-            #TODO
-            pass
-        
-        elif data[0:5] == "PATCY":
-            #TODO
-            pass
-        
-        elif data[0:5] == "PATCN":
-            #TODO
-            pass
-        
+            self.flagQueue.put(-1)
+            self.isActive = False
+            return    
+        elif data[0:5] == "PATCH":
+            global NUMCON
+            NUMCON -=1
+            restData = data[6:].split(":")
+            header = (int(restData[1]),int(restData[0]))
+            patchMx = []
+            pData = restData[2].split(',')
+            for item in pData:
+                patchMx.append(int(item))
+            self.pQueue.put(header,patchMx)
+            self.flagQueue.put(1)
+            self.isActive = False
     def run(self):
-        print "Starting "+self.name
-        self.socket.connect((str(self.negIp),int(self.negPort)))
-        self.socket.send("REGME "+str(self.ip)+":"+str(self.port))
-        data = self.socket.recv(1024)
-        self.clientParser(data)
-        self.socket.send("GETNL")
-        data = self.socket.recv(1024)
-        self.clientParser(data)
-        print "Negotiator Client calisiyor"
-        
-        time.sleep(5)
-        
-        #To close Negotiator Server thread
-        self.socket.send("CLOSE")
-        self.socket.recv(1024)
-        self.socket.close()
-        print "Negotiator ile initialisation bitti"
-        
-        while True:
-            
-            if not self.flag.empty():
-                print "Client flag aldi"
-                theFlag = self.flag.get()
-                #select the peer
-                if len(self.cpl) > 2:
-                    
-                    selInx = random.randint(0,len(self.cpl)-1)
-                    print "random sayim : ", selInx
-                    selected = self.cpl[selInx]
-                    while ((selected[0]==self.ip and int(selected[1])==self.port) or selected[3]=="N"):
-                        selInx = random.randint(0,len(self.cpl)-1)
-                        print "random sayim : ", selInx
-                        selected = self.cpl[selInx]
-                    self.socket = socket.socket()
-                    print "secilmis : " , selected
-                    self.socket.connect((selected[0],int(selected[1])))
-                    self.socket.send("HELLO")
-                    print "Peer to peer cevabi : ",self.socket.recv(1024)
-                    self.socket.send("REGME "+self.ip+":"+str(self.port))
-                    print "Peer to peer cevabi : ",self.socket.recv(1024)
-                    self.socket.send("CLOSE")
-                    self.socket.recv(1024)
-                    self.socket.close()
-                    return
-                
+        print "Starting "+self.name    
+        while self.isActive:
+            self.socket.recv(10000000)
+            self.clientParser(data)
+      
 class WorkerThread (threading.Thread):
     def __init__(self, name, inQueue, outQueue, pLock):
         threading.Thread.__init__(self)
@@ -607,7 +560,7 @@ class WorkerThread (threading.Thread):
             time.sleep(.01)
 
 class imGui(QMainWindow):
-    def __init__(self, workQueue, processedQueue, pLock, flagQueue):
+    def __init__(self, workQueue, processedQueue, pLock):
         self.qt_app = QApplication(sys.argv)
         QWidget.__init__(self, None)
 
@@ -623,7 +576,6 @@ class imGui(QMainWindow):
         self.imageFile = None
         self.pLock = pLock
         self.patchsize = 128
-        self.flag = flagQueue
         # fill combobox
         self.ui.boxFunction.addItem("GrayScale")
         self.ui.boxFunction.addItem("SobelFilter")
@@ -757,7 +709,6 @@ class imGui(QMainWindow):
     def startProcess(self):
         # randomly organizes the patches
         self.perms = list(np.random.permutation(self.numPatches))
-        self.flag.put(1)
         print "Ekran flag koydu"
         # or simply orders the patches
         # self.perms = range(0,self.numPatches)
@@ -789,7 +740,6 @@ def main():
     
     workQueue = Queue.Queue(QUEUENUM)
     processedQueue = Queue.Queue(maxSize)
-    flagQueue = Queue.Queue(4)
     pLock = threading.Lock()
     iPort = []
     if len(sys.argv) == 3:
@@ -799,9 +749,9 @@ def main():
         print "usage : <filename> <Peer IP> <Peer Port> "
         sys.exit()
         
-    mainThread = MainThread(workQueue,processedQueue,pLock,iPort, flagQueue)
+    mainThread = MainThread(workQueue,processedQueue,pLock,iPort)
     mainThread.start()
-    app = imGui(workQueue,processedQueue, pLock, flagQueue)
+    app = imGui(workQueue,processedQueue, pLock)
     app.run()
     
 if __name__ == '__main__':
