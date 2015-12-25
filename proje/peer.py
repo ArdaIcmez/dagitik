@@ -14,12 +14,8 @@ import socket
 
 """
 TODO:
--WARNING : FUNLI?? | Time check when CPL UPDATE???
--UPDATER THREAD (with UPDATE_INTERVAL)
--UPDATER THREAD (check other peers)
 -Worker thread implementation for Server thread
 -Protocol Implementation of client & server
--Somehow get GUI working with other threads
 -Debug a ton
 """
 

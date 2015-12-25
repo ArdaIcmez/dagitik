@@ -7,7 +7,7 @@ import Queue
 import time
 """
 TODO:
--UPDATER THREAD (with UPDATE_INTERVAL)    
+-Completed? recv(1024) may cause problems  
 """
 class ClientThread (threading.Thread):
     def __init__(self, name, test, cpl, cplLock):
@@ -171,8 +171,7 @@ class TimeThread (threading.Thread):
                 for i in range(0,len(self.cpl)):
                     if (delIndex[0]==self.cpl[i][0] and int(delIndex[1])==int(self.cpl[i][1])):
                         print "siliyorum sunu ", self.cpl[i]
-                        del self.cpl[i]
-                        
+                        del self.cpl[i]                    
                         break;
                 
 def main():
