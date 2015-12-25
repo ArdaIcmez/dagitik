@@ -146,7 +146,9 @@ class ServerThread (threading.Thread):
         self.isActive = True
         self.clIp = ""
         self.clPort = 0
+        self.workerNum = 0
     def incomingParser(self, data):
+        print "###Servera gelen data" , data
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT P")
             return
@@ -263,11 +265,29 @@ class ServerThread (threading.Thread):
             return
         elif data[0:5] == "EXERQ":
             restData = data[6:].split(':')
-            #TODO
+            headerTuple = (int(restData[2]),int(restData[3]))
+            dataSet = restData[4].split(',')
+            msgDataset = []
+            for item in dataSet:
+                msgDataset.append(int(item))
+            message = ((restData[0],headerTuple),msgDataset)
+            if(self.workerNum>3):
+                self.cSocket.send("EXEDS "+str(restData[3])+":"+str(restData[2]))
+                return
+            try:
+                workThread = WorkerThread("Server Worker Thread"+`self.workerNum`,int(restData[1]),message,self.cSocket)
+                workThread.setDaemon(True)
+                workThread.start()
+                self.workerNum+=1
+            except:
+                print "Worker thread acilmadi"
+                
             return
-        elif data[0:5] == "PATCH":
-            restData = data[6:].split(':')
-            #TODO
+        elif data[0:5] == "PATYS":
+            print "PATYS geldi"
+            return
+        elif data[0:5] == "PATNO":
+            print "PATNO geldi"
             return
         else:
             self.cSocket.send("CMDER")
@@ -278,18 +298,7 @@ class ServerThread (threading.Thread):
         while self.isActive:
             data = self.cSocket.recv(1024)
             self.incomingParser(data)
-        """for i in range(0,numThreads):
-            workThreads.append(WorkerThread("WorkerThread" + str(i),
-                                        workQueue,
-                                        processedQueue,
-                                        pLock))
-            workThreads[i].start()
-            
-        for a in range(0,numThreads):
-            self.workQueue.put("END")
 
-        for thread in workThreads:
-            thread.join()"""
         print "Kapaniyor ", self.name
 
 
@@ -412,7 +421,6 @@ class SendWorkThread (threading.Thread):
         patch =""
         for item in data[1]:
             patch+=str(item)+","
-        patch = patch[:-1]
         myMsg = "EXERQ "+data[0][0]+":"+str(self.treshold)+":"+data[0][1][0]+":"+data[0][1][1]+":"+patch
         return message
     def run(self):
@@ -425,8 +433,10 @@ class SendWorkThread (threading.Thread):
                 flag = flagQueue.get()
                 if flag == -1:
                     print "Baglantida sikinti cikti", self.name
+                    self.wQueue.put(data)
                 elif flag == 1:
                     print "is bitti yani patch geldi"
+                self.socket.send("CLOSE")
                 return
             try:
                 self.socket.sendall(message)
@@ -484,14 +494,13 @@ class GetProcessedThread (threading.Thread):
             self.clientParser(data)
       
 class WorkerThread (threading.Thread):
-    def __init__(self, name, inQueue, outQueue, pLock):
+    def __init__(self, name, threshold, message, cSocket):
         threading.Thread.__init__(self)
         self.name = name
-        self.inQueue = inQueue # the queue to read unprocessed data
-        self.outQueue = outQueue # the queue to put processed data
-        self.pLock = pLock
         self.patchsize = 128
-
+        self.threshold = threshold
+        self.message = message
+        self.cSocket = cSocket
     def convertGray(self, header, patch):
         # convert the patch to gray (actually does nothing as the incoming
         # data is already 8bit grayscale data)
@@ -526,34 +535,21 @@ class WorkerThread (threading.Thread):
                     + 1* patch[index1 + 1]
 
                 newMessage[index0] = int(math.sqrt(temp0**2 + temp1**2))
-                # apply the threshold parameter
-                # if newMessage[index0] > threshold:
-                #     newMessage[index0] = 255
-                # else:
-                #     newMessage[index0] = 0
+                #apply the threshold parameter
+                if newMessage[index0] > threshold:
+                    newMessage[index0] = 255
+                else:
+                    newMessage[index0] = 0
         return (header, newMessage)
 
 
     def run(self):
         print self.name + ": Starting."
-        while(True):
-            if self.inQueue.qsize() > 0:
-                message = self.inQueue.get()
-                if message == "END":
-                    print self.name + ": Ending."
-                    break
-                print self.name + ": " + str(message[0][0]) + \
-                    " " + str(message[0][1]) + " Queue size: " \
-                      + str(self.inQueue.qsize())
-                if str(message[0][0]) == "SobelFilter":
-                    outMessage = self.filterSobel(message[0][1], message[1],
-                                                  128)
-                if str(message[0][0]) == "GrayScale":
-                    outMessage = self.convertGray(message[0][1], message[1])
-                # self.pLock.acquire()
-                self.outQueue.put(outMessage)
-                # self.pLock.release()
-            time.sleep(.01)
+        if str(message[0][0]) == "SobelFilter":
+            outMessage = self.filterSobel(message[0][1], message[1],self.threshold)
+        elif str(message[0][0]) == "GrayScale":
+            outMessage = self.convertGray(message[0][1], message[1])
+        self.outQueue.put(outMessage)
 
 class imGui(QMainWindow):
     def __init__(self, workQueue, processedQueue, pLock):
