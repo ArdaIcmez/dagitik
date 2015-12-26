@@ -394,25 +394,30 @@ class GuiListenThread (threading.Thread):
                 while NUMCON<10:
                     rndInx= random.randint(0,len(self.cpl))
                     if(self.cpl[rndInx][0] != self.ip and int(self.cpl[rndInx][1])!=self.port and self.cpl[rndInx][3] != "N"):
-                        print "Baglanacak thread buldum"
+                        print "Baglanacak peer buldum", self.cpl[rndInx]
                         try:
                             soc = socket.socket()
                             soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
                             socList.append()
                             flagQueue = Queue.Queue()
-                            clSendThread = SendWorkThread("Sender Thread"+`NUMCON`,soc,self.wQueue, flagQueue)
+                            clSendThread = SendWorkThread("Sender Thread"+`NUMCON`,soc,self.wQueue, flagQueue,(self.ip,self.port))
                             clRecvThread = GetProcessedThread("Getter Thread"+`NUMCON`, soc,self.pQueue, flagQueue)
                             NUMCON+=1
                         except:
                             "Baglanirken sikinti cikti", self.cpl[rndInx]
+                if NUMCON == 0:
+                    print "Su an 0 baglanti var"
+                    break
                 
 class SendWorkThread (threading.Thread):
-    def __init__(self, name, socket, workQueue, flagQueue):
+    def __init__(self, name, socket, workQueue, flagQueue, ipPort):
         threading.Thread.__init__(self)
         self.name = name
         self.socket = socket
         self.wQueue = workQueue
         self.treshold = 128
+        self.ip = str(ipPort[0])
+        self.port = int(ipPort[1])
     def prepareMsg(self,data):
         patch =""
         for item in data[1]:
@@ -422,6 +427,7 @@ class SendWorkThread (threading.Thread):
     def run(self):
         data = self.wQueue.get()
         message = prepareMsg(data)
+        self.socket.send("REGME "+self.ip+":"+str(self.port))
         self.socket.send("FUNRQ "+str(data[0][0]))
         time.sleep(2)
         while True:
@@ -483,6 +489,7 @@ class GetProcessedThread (threading.Thread):
             self.pQueue.put(header,patchMx)
             self.flagQueue.put(1)
             self.isActive = False
+            
     def run(self):
         print "Starting "+self.name    
         while self.isActive:
