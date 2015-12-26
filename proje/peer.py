@@ -11,7 +11,7 @@ import time
 import random
 import math
 import socket
-
+import re
 """
 TODO:
 -Worker thread implementation for Server thread
@@ -147,7 +147,13 @@ class ServerThread (threading.Thread):
         self.clPort = 0
         self.workerNum = 0
     def incomingParser(self, data):
-        print "###Servera gelen data" , data,"$$$"
+        if len(data) < 1024:
+            print "###Servera gelen data" , data,"$$$"
+        else:
+            print "patch parcasi geliyo",len(data)
+            f = open('getterfile', 'a')
+            f.write(data)
+            f.write('\n')
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT P")
             return
@@ -264,16 +270,21 @@ class ServerThread (threading.Thread):
             return
         elif data[0:5] == "EXERQ":
             restData = data[6:].split(':')
-            headerTuple = (int(restData[2]),int(restData[3]))
+            headerTuple = (int(restData[1]),int(restData[2]))
+            print "EXERQ ile gelen datanin buyuklugu : ", len(restData[4])
             dataSet = restData[4].split(',')
-            msgDataset = []
-            for item in dataSet:
-                msgDataset.append(int(item))
+            print "ayirdigim dataset ", dataSet
+            #last element is ''
+            del dataSet[-1]
+            msgDataset = [0]*128*128
+            for item in range(0,(len(dataSet)-1)):
+                msgDataset[item] = dataSet[item]
             message = ((restData[0],headerTuple),msgDataset)
             if(self.workerNum>3):
                 self.cSocket.send("EXEDS "+str(restData[3])+":"+str(restData[2]))
                 return
             try:
+                print "worker thread aciliyor"
                 workThread = WorkerThread("Server Worker Thread"+`self.workerNum`,int(restData[1]),message,self.cSocket)
                 workThread.setDaemon(True)
                 workThread.start()
@@ -301,7 +312,8 @@ class ServerThread (threading.Thread):
         workThreads = []
         print "Starting "+self.name
         while self.isActive:
-            data = self.cSocket.recv(1024)
+            data = self.cSocket.recv(66000)
+            print "aldigim data buyuklugu", len(data)
             self.incomingParser(data)
 
         print "Kapaniyor ", self.name
@@ -433,9 +445,12 @@ class SendWorkThread (threading.Thread):
         
     def prepareMsg(self,data):
         patch =""
+        print "calisacagim data buyuklugu",len(data[1])
         for item in data[1]:
             patch+=str(item)+","
-        myMsg = "EXERQ "+data[0][0]+":"+str(self.treshold)+":"+str(data[0][1][0])+":"+str(data[0][1][1])+":"+patch
+        print "son calistigim data: ",data[1][-1]
+        myMsg = "EXERQ "+str(data[0][0])+":"+str(self.treshold)+":"+str(data[0][1][0])+":"+str(data[0][1][1])+":"+patch
+        print "gonderilecek mesaj basi", myMsg[0:50], "buyuk:",len(myMsg)
         return myMsg
     
     def run(self):
@@ -444,6 +459,7 @@ class SendWorkThread (threading.Thread):
         message = self.prepareMsg(data)
         print "REGME gonderiyorum"
         self.socket.send("REGME "+self.ip+":"+str(self.port))
+        time.sleep(2)
         print "FUNRQ gonderiyorum"
         self.socket.send("FUNRQ "+str(data[0][0]))
         time.sleep(2)
@@ -458,11 +474,13 @@ class SendWorkThread (threading.Thread):
                 self.socket.send("CLOSE")
                 return
             try:
-                self.socket.send(message)
+                self.socket.sendall(message)
+                f = open('senderfile', 'w')
+                f.write(message)
             except:
                 print "Baglantida sikinti cikti", self.name
 
-            time.sleep(5)
+            time.sleep(30)
             
 class GetProcessedThread (threading.Thread):
     def __init__(self, name, socket, processedQueue, flagQueue):
@@ -499,10 +517,11 @@ class GetProcessedThread (threading.Thread):
             NUMCON -=1
             restData = data[6:].split(":")
             header = (int(restData[1]),int(restData[0]))
-            patchMx = []
+            patchMx = [0]*128*128
             pData = restData[2].split(',')
             for item in pData:
                 patchMx.append(int(item))
+            print "Patch geldi ve processede gonderilecek e gonderilecek"
             self.pQueue.put(header,patchMx)
             self.flagQueue.put(1)
             self.isActive = False
@@ -510,7 +529,7 @@ class GetProcessedThread (threading.Thread):
     def run(self):
         print "Starting "+self.name    
         while self.isActive:
-            data = self.socket.recv(9999999)
+            data = self.socket.recv(10000000)
             self.clientParser(data)
       
 class WorkerThread (threading.Thread):
@@ -565,14 +584,14 @@ class WorkerThread (threading.Thread):
     def run(self):
         print self.name + ": Starting."
         outMessage = ""
-        if str(message[0][0]) == "SobelFilter":
-            outMessage = self.filterSobel(message[0][1], message[1],self.threshold)
-        elif str(message[0][0]) == "GrayScale":
-            outMessage = self.convertGray(message[0][1], message[1])
+        if str(self.message[0][0]) == "SobelFilter":
+            outMessage = self.filterSobel(self.message[0][1], self.message[1],self.threshold)
+        elif str(self.message[0][0]) == "GrayScale":
+            outMessage = self.convertGray(self.message[0][1], self.message[1])
         strMsg = ""
         for item in outMessage[1]:
             strMsg += str(item)+","
-            
+        strMsg = strMsg[:-1]
         message = str(outMessage[0][1])+":"+str(outMessage[0][0])+":"+strMsg
         self.cSocket.send("PATCH "+message)
         
