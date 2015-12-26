@@ -14,9 +14,7 @@ import socket
 import re
 """
 TODO:
--Worker thread implementation for Server thread
--Protocol Implementation of client & server
--Debug a ton
+-Implement other filters
 """
 
 def rgb2gray(rgbint):
@@ -366,8 +364,8 @@ class NegClientThread (threading.Thread):
                     #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
                     self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
             self.cplLock.release()
-            for item in self.cpl:
-                print item
+            #for item in self.cpl:
+            #    print item
         
     def run(self):
         print "Starting "+self.name
