@@ -74,10 +74,10 @@ class MainThread (threading.Thread):
         except:
             print "testerthread sikinti cikardi"
         try:
-            """guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
+            guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
             guiListener.setDaemon(True)
             guiListener.start()
-            print "buyuk ihtimal calisti"""
+            print "buyuk ihtimal calisti"
         except:
             print "guilistener sikinti cikardi"
         global mainFlag
@@ -147,7 +147,7 @@ class ServerThread (threading.Thread):
         self.clPort = 0
         self.workerNum = 0
     def incomingParser(self, data):
-        print "###Servera gelen data" , data
+        print "###Servera gelen data" , data,"$$$"
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT P")
             return
@@ -282,11 +282,17 @@ class ServerThread (threading.Thread):
                 print "Worker thread acilmadi"
                 
             return
+        elif data[0:5] == "PATOK":
+            print "PATOK geldi"
+            self.workerNum-=1
+            return
         elif data[0:5] == "PATYS":
             print "PATYS geldi"
+            self.workerNum-=1
             return
         elif data[0:5] == "PATNO":
             print "PATNO geldi"
+            self.workerNum-=1
             return
         else:
             self.cSocket.send("CMDER")
@@ -392,21 +398,28 @@ class GuiListenThread (threading.Thread):
                 global NUMCON
                 NUMCON = 0
                 while NUMCON<10:
-                    rndInx= random.randint(0,len(self.cpl))
-                    if(self.cpl[rndInx][0] != self.ip and int(self.cpl[rndInx][1])!=self.port and self.cpl[rndInx][3] != "N"):
-                        print "Baglanacak peer buldum", self.cpl[rndInx]
-                        try:
-                            soc = socket.socket()
-                            soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
-                            socList.append()
-                            flagQueue = Queue.Queue()
-                            clSendThread = SendWorkThread("Sender Thread"+`NUMCON`,soc,self.wQueue, flagQueue,(self.ip,self.port))
-                            clRecvThread = GetProcessedThread("Getter Thread"+`NUMCON`, soc,self.pQueue, flagQueue)
-                            NUMCON+=1
-                        except:
-                            "Baglanirken sikinti cikti", self.cpl[rndInx]
-                if NUMCON == 0:
-                    print "Su an 0 baglanti var"
+                    
+                    rndInx= random.randint(0,(len(self.cpl)-1))
+                    print "random sayim : ", rndInx,self.cpl[rndInx]
+                    if(self.cpl[rndInx][3] == "P"):
+                        print "peer olan buldum",self.ip,self.port,self.cpl[rndInx]
+                        if self.cpl[rndInx][0] != self.ip or int(self.cpl[rndInx][1])!=self.port:
+                            print "Baglanacak peer buldum", self.cpl[rndInx]
+                            try:
+                                soc = socket.socket()
+                                soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
+                                print "baglanti sagladim"
+                                socList.append()
+                                flagQueue = Queue.Queue()
+                                clSendThread = SendWorkThread("Sender Thread"+`NUMCON`,soc,self.wQueue, flagQueue,(self.ip,self.port))
+                                clRecvThread = GetProcessedThread("Getter Thread"+`NUMCON`, soc,self.pQueue, flagQueue)
+                                print "iki threadi de baslatmis olmasi lazim"
+                                NUMCON+=1
+                            except:
+                                "Baglanirken sikinti cikti", self.cpl[rndInx]
+                            time.sleep(10)
+                if self.wQueue.empty():
+                    print "Su an 0 is var"
                     break
                 
 class SendWorkThread (threading.Thread):
@@ -425,9 +438,12 @@ class SendWorkThread (threading.Thread):
         myMsg = "EXERQ "+data[0][0]+":"+str(self.treshold)+":"+data[0][1][0]+":"+data[0][1][1]+":"+patch
         return message
     def run(self):
+        print self.name,"calisiyor"
         data = self.wQueue.get()
         message = prepareMsg(data)
+        print "REGME gonderiyorum"
         self.socket.send("REGME "+self.ip+":"+str(self.port))
+        print "FUNRQ gonderiyorum"
         self.socket.send("FUNRQ "+str(data[0][0]))
         time.sleep(2)
         while True:
