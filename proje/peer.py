@@ -194,9 +194,6 @@ class ServerThread (threading.Thread):
             
             #test to see if peer is tested before
             self.cplLock.acquire()
-            for item in self.cpl:
-                print item
-            print self.clIp, self.clPort
             if not [peer for peer in self.cpl if (peer[0] == self.clIp and str(peer[1])==str(self.clPort) and peer[4]=="S")]:  
                 self.cSocket.send("REGER")
                 return
@@ -270,14 +267,15 @@ class ServerThread (threading.Thread):
             return
         elif data[0:5] == "EXERQ":
             restData = data[6:].split(':')
-            headerTuple = (int(restData[1]),int(restData[2]))
+            headerTuple = (int(restData[2]),int(restData[3]))
             print "EXERQ ile gelen datanin buyuklugu : ", len(restData[4])
             dataSet = restData[4].split(',')
             #last element is ''
             del dataSet[-1]
             msgDataset = [0]*128*128
             for item in range(0,(len(dataSet)-1)):
-                msgDataset[item] = int(dataSet[item])
+                msgDataset[item] = long(dataSet[item])
+            print "HAZIRLADIGIM MESSAGE DA ORNEK:",msgDataset[0]
             message = ((str(restData[0]),headerTuple),msgDataset)
             if(self.workerNum>3):
                 self.cSocket.send("EXEDS "+str(restData[3])+":"+str(restData[2]))
@@ -426,7 +424,7 @@ class GuiListenThread (threading.Thread):
                                 NUMCON+=1
                             except:
                                 "Baglanirken sikinti cikti", self.cpl[rndInx]
-                            time.sleep(10)
+                            time.sleep(1)
                 if self.wQueue.empty():
                     print "Su an 0 is var"
                     break
@@ -464,7 +462,7 @@ class SendWorkThread (threading.Thread):
         time.sleep(2)
         while True:
             if not self.flagQueue.empty():
-                flag = flagQueue.get()
+                flag = self.flagQueue.get()
                 if flag == -1:
                     print "Baglantida sikinti cikti", self.name
                     self.wQueue.put(data)
@@ -479,7 +477,7 @@ class SendWorkThread (threading.Thread):
             except:
                 print "Baglantida sikinti cikti", self.name
 
-            time.sleep(30)
+            time.sleep(10)
             
 class GetProcessedThread (threading.Thread):
     def __init__(self, name, socket, processedQueue, flagQueue):
@@ -516,10 +514,13 @@ class GetProcessedThread (threading.Thread):
             NUMCON -=1
             restData = data[6:].split(":")
             header = (int(restData[1]),int(restData[0]))
+            print header, "HEADER DOSYAM"
             patchMx = [0]*128*128
             pData = restData[2].split(',')
+            print "pDatadakiler:" ,pData[0],long(pData[0]),"pdatakailer"
             for item in range(0,(len(pData)-1)):
-                patchMx[item] = pData[item]
+                patchMx[item] = long(pData[item])
+                        
             print "Patch geldi ve processede gonderilecek e gonderilecek"
             self.pQueue.put((header,patchMx))
             self.flagQueue.put(1)
@@ -574,10 +575,10 @@ class WorkerThread (threading.Thread):
 
                 newMessage[index0] = int(math.sqrt(temp0**2 + temp1**2))
                 #apply the threshold parameter
-                if newMessage[index0] > threshold:
-                    newMessage[index0] = 255
-                else:
-                    newMessage[index0] = 0
+                #if newMessage[index0] > threshold:
+                #    newMessage[index0] = 255
+                #else:
+                #    newMessage[index0] = 0
         return (header, newMessage)
 
     def run(self):
@@ -707,6 +708,7 @@ class imGui(QMainWindow):
         # convert the message data into the matrix and put directy on the
         # image using the reference pixels (refPix)
         counter = 0
+        print "FONKSIYONDAKI COLOR DATA TIPI",type(data),"data tipi"
         for color in data:
             x = counter % self.patchsize
             y = counter // self.patchsize
