@@ -273,13 +273,12 @@ class ServerThread (threading.Thread):
             headerTuple = (int(restData[1]),int(restData[2]))
             print "EXERQ ile gelen datanin buyuklugu : ", len(restData[4])
             dataSet = restData[4].split(',')
-            print "ayirdigim dataset ", dataSet
             #last element is ''
             del dataSet[-1]
             msgDataset = [0]*128*128
             for item in range(0,(len(dataSet)-1)):
-                msgDataset[item] = dataSet[item]
-            message = ((restData[0],headerTuple),msgDataset)
+                msgDataset[item] = int(dataSet[item])
+            message = ((str(restData[0]),headerTuple),msgDataset)
             if(self.workerNum>3):
                 self.cSocket.send("EXEDS "+str(restData[3])+":"+str(restData[2]))
                 return
@@ -491,7 +490,7 @@ class GetProcessedThread (threading.Thread):
         self.flagQueue = flagQueue
         self.isActive = True
     def clientParser(self, data):
-        print "PeerServer - PeerClient gelen data :", data
+        print "PeerServer - PeerClient gelen data :", data[0:15]
         
         #Basically, FUNLI BEGIN and FUNYS does nothing here
         if data[0:11] == "FUNLI BEGIN":
@@ -519,10 +518,10 @@ class GetProcessedThread (threading.Thread):
             header = (int(restData[1]),int(restData[0]))
             patchMx = [0]*128*128
             pData = restData[2].split(',')
-            for item in pData:
-                patchMx.append(int(item))
+            for item in range(0,(len(pData)-1)):
+                patchMx[item] = pData[item]
             print "Patch geldi ve processede gonderilecek e gonderilecek"
-            self.pQueue.put(header,patchMx)
+            self.pQueue.put((header,patchMx))
             self.flagQueue.put(1)
             self.isActive = False
             
@@ -594,7 +593,7 @@ class WorkerThread (threading.Thread):
         strMsg = strMsg[:-1]
         message = str(outMessage[0][1])+":"+str(outMessage[0][0])+":"+strMsg
         self.cSocket.send("PATCH "+message)
-        
+        print "Worker thread isi bitti, kapaniyor"
 class imGui(QMainWindow):
     def __init__(self, workQueue, processedQueue):
         self.qt_app = QApplication(sys.argv)
