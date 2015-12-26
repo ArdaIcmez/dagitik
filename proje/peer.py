@@ -149,9 +149,6 @@ class ServerThread (threading.Thread):
             print "###Servera gelen data" , data,"$$$"
         else:
             print "patch parcasi geliyo",len(data)
-            f = open('getterfile', 'a')
-            f.write(data)
-            f.write('\n')
         if data[0:5] == "HELLO":
             self.cSocket.send("SALUT P")
             return
@@ -270,6 +267,11 @@ class ServerThread (threading.Thread):
             dataSet = restData[4].split(',')
             #last element is ''
             del dataSet[-1]
+            if(len(dataSet)<(127*127)):
+                f = open('hataLog', 'a')
+                f.write("DATASET HATALI GELDI SERVERA!"+str(len(dataSet)))
+                f.write('\n')
+                return
             msgDataset = [0]*128*128
             for item in range(0,(len(dataSet)-1)):
                 msgDataset[item] = long(dataSet[item])
@@ -423,9 +425,9 @@ class GuiListenThread (threading.Thread):
                             except:
                                 "Baglanirken sikinti cikti", self.cpl[rndInx]
                             time.sleep(1)
-                if self.wQueue.empty():
-                    print "Su an 0 is var"
-                    break
+                    if self.wQueue.empty():
+                        print "Su an 0 is var"
+                        break
                 
 class SendWorkThread (threading.Thread):
     def __init__(self, name, socket, workQueue, flagQueue, ipPort):
@@ -467,15 +469,18 @@ class SendWorkThread (threading.Thread):
                 elif flag == 1:
                     print "is bitti yani patch geldi"
                 self.socket.send("CLOSE")
+                try:
+                    self.socket.settimeout(10)
+                    byeMsg = self.socket.recv(1024)
+                except:
+                    "zaman gecti, peer client i kapaniyor"
                 return
             try:
                 self.socket.sendall(message)
-                f = open('senderfile', 'w')
-                f.write(message)
             except:
                 print "Baglantida sikinti cikti", self.name
 
-            time.sleep(10)
+            time.sleep(5)
             
 class GetProcessedThread (threading.Thread):
     def __init__(self, name, socket, processedQueue, flagQueue):
@@ -516,11 +521,22 @@ class GetProcessedThread (threading.Thread):
             patchMx = [0]*128*128
             pData = restData[2].split(',')
             print "pDatadakiler:" ,pData[0],long(pData[0]),"pdatakailer"
+            if(len(pData)<(127*127)):
+                self.socket.send("PATNO "+str(header[1])+":"+str(header[0]))
+                self.flagQueue.put(-1)
+                self.isActive = False
+                f.write("PATNO geldi")
+                f.write('\n')
+                return
             for item in range(0,(len(pData)-1)):
                 patchMx[item] = long(pData[item])
                         
             print "Patch geldi ve processede gonderilecek e gonderilecek"
             self.pQueue.put((header,patchMx))
+            self.socket.send("PATYS "+str(header[1])+":"+str(header[0]))
+            f = open('hataLog', 'a')
+            f.write("PATYS geldi")
+            f.write('\n')
             self.flagQueue.put(1)
             self.isActive = False
             
