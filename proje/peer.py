@@ -400,20 +400,18 @@ class GuiListenThread (threading.Thread):
                 while NUMCON<10:
                     
                     rndInx= random.randint(0,(len(self.cpl)-1))
-                    print "random sayim : ", rndInx,self.cpl[rndInx]
                     if(self.cpl[rndInx][3] == "P"):
-                        print "peer olan buldum",self.ip,self.port,self.cpl[rndInx]
                         if self.cpl[rndInx][0] != self.ip or int(self.cpl[rndInx][1])!=self.port:
                             print "Baglanacak peer buldum", self.cpl[rndInx]
+                            soc = socket.socket()
                             try:
-                                soc = socket.socket()
                                 soc.connect((self.cpl[rndInx][0],int(self.cpl[rndInx][1])))
                                 print "baglanti sagladim"
-                                socList.append()
                                 flagQueue = Queue.Queue()
-                                clSendThread = SendWorkThread("Sender Thread"+`NUMCON`,soc,self.wQueue, flagQueue,(self.ip,self.port))
-                                clRecvThread = GetProcessedThread("Getter Thread"+`NUMCON`, soc,self.pQueue, flagQueue)
-                                print "iki threadi de baslatmis olmasi lazim"
+                                clSendThread = SendWorkThread("Sender Thread", soc,self.wQueue, flagQueue,(self.ip,self.port))
+                                clSendThread.start()
+                                clRecvThread = GetProcessedThread("Getter Thread", soc,self.pQueue, flagQueue)
+                                clRecvThread.start()
                                 NUMCON+=1
                             except:
                                 "Baglanirken sikinti cikti", self.cpl[rndInx]
@@ -428,19 +426,22 @@ class SendWorkThread (threading.Thread):
         self.name = name
         self.socket = socket
         self.wQueue = workQueue
-        self.treshold = 128
+        self.flagQueue = flagQueue
         self.ip = str(ipPort[0])
         self.port = int(ipPort[1])
+        self.treshold = 128
+        
     def prepareMsg(self,data):
         patch =""
         for item in data[1]:
             patch+=str(item)+","
-        myMsg = "EXERQ "+data[0][0]+":"+str(self.treshold)+":"+data[0][1][0]+":"+data[0][1][1]+":"+patch
-        return message
+        myMsg = "EXERQ "+data[0][0]+":"+str(self.treshold)+":"+str(data[0][1][0])+":"+str(data[0][1][1])+":"+patch
+        return myMsg
+    
     def run(self):
         print self.name,"calisiyor"
         data = self.wQueue.get()
-        message = prepareMsg(data)
+        message = self.prepareMsg(data)
         print "REGME gonderiyorum"
         self.socket.send("REGME "+self.ip+":"+str(self.port))
         print "FUNRQ gonderiyorum"
@@ -509,7 +510,7 @@ class GetProcessedThread (threading.Thread):
     def run(self):
         print "Starting "+self.name    
         while self.isActive:
-            self.socket.recv(10000000)
+            data = self.socket.recv(10000000)
             self.clientParser(data)
       
 class WorkerThread (threading.Thread):
