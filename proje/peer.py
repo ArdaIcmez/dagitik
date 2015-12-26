@@ -458,7 +458,7 @@ class SendWorkThread (threading.Thread):
                 self.socket.send("CLOSE")
                 return
             try:
-                self.socket.sendall(message)
+                self.socket.send(message)
             except:
                 print "Baglantida sikinti cikti", self.name
 
@@ -510,7 +510,7 @@ class GetProcessedThread (threading.Thread):
     def run(self):
         print "Starting "+self.name    
         while self.isActive:
-            data = self.socket.recv(10000000)
+            data = self.socket.recv(9999999)
             self.clientParser(data)
       
 class WorkerThread (threading.Thread):
