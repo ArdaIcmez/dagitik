@@ -41,10 +41,14 @@ class MainThread (threading.Thread):
         cpl = []
         cplLock = threading.Lock()
         
+        global workerNum
+        workerNum = 0
         funcList = []
         funcList.append(["GrayScale"])
-        funcList.append(["SobelFilter",255])
-        
+        funcList.append(["SobelFilter"])
+        funcList.append(["Binarize"])
+        funcList.append(["PrewittFilter"])
+        funcList.append(["GaussianFilter"])
         negIp = "localhost"
         negPort = 11111
         
@@ -71,6 +75,12 @@ class MainThread (threading.Thread):
             testerThread.start()
         except:
             print "testerthread sikinti cikardi"
+        try:
+            updateThread = TimeThread("UpdateThread",cpl,cplLock,ip,port)
+            updateThread.setDaemon(True)
+            updateThread.start()
+        except:
+            print "updateThread sikinti cikardi"
         try:
             guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
             guiListener.setDaemon(True)
@@ -106,7 +116,8 @@ class TesterThread (threading.Thread):
             pass
     def run(self):
         print "Starting "+self.name
-        while True:
+        global mainFlag
+        while mainFlag:
 
             #Check to see if there are any peers to test
             if not self.testQueue.empty():
@@ -124,8 +135,6 @@ class TesterThread (threading.Thread):
                 #Did not receive a response or something went wrong, do nothing
                 except:
                     pass
-            #if exitflag == 1:
-                #return
 
 class ServerThread (threading.Thread):
     def __init__(self, name, cSocket, addr, workQueue, processedQueue, cpl, cplLock, testQueue, funcList):
@@ -143,8 +152,8 @@ class ServerThread (threading.Thread):
         self.isActive = True
         self.clIp = ""
         self.clPort = 0
-        self.workerNum = 0
     def incomingParser(self, data):
+        global workerNum
         if len(data) < 1024:
             print "###Servera gelen data" , data,"$$$"
         else:
@@ -153,7 +162,11 @@ class ServerThread (threading.Thread):
             self.cSocket.send("SALUT P")
             return
         elif data[0:5] == "CLOSE":
-            self.cSocket.send("BUBYE")
+            try:
+                self.cSocket.send("BUBYE")
+            except:
+                print "karsi taraf kapanmis"
+                
             self.isActive = False
             return
         
@@ -268,39 +281,41 @@ class ServerThread (threading.Thread):
             #last element is ''
             del dataSet[-1]
             if(len(dataSet)<(127*127)):
-                f = open('hataLog', 'a')
-                f.write("DATASET HATALI GELDI SERVERA!"+str(len(dataSet)))
+                f = open('patchLog', 'a')
+                f.write("Peerdan servera eksik mesaj geldi")
                 f.write('\n')
                 return
             msgDataset = [0]*128*128
             for item in range(0,(len(dataSet)-1)):
                 msgDataset[item] = long(dataSet[item])
-            print "HAZIRLADIGIM MESSAGE DA ORNEK:",msgDataset[0]
             message = ((str(restData[0]),headerTuple),msgDataset)
-            if(self.workerNum>3):
+            if(workerNum>4):
                 self.cSocket.send("EXEDS "+str(restData[3])+":"+str(restData[2]))
                 return
             try:
                 print "worker thread aciliyor"
-                workThread = WorkerThread("Server Worker Thread"+`self.workerNum`,int(restData[1]),message,self.cSocket)
+                workThread = WorkerThread("Server Worker Thread"+`workerNum`,int(restData[1]),message,self.cSocket)
                 workThread.setDaemon(True)
                 workThread.start()
-                self.workerNum+=1
+                workerNum+=1
+                f = open('workerLog', 'a')
+                f.write("Worker thread acildi : "+str(workerNum))
+                f.write('\n')
             except:
                 print "Worker thread acilmadi"
                 
             return
         elif data[0:5] == "PATOK":
             print "PATOK geldi"
-            self.workerNum-=1
+            workerNum-=1
             return
         elif data[0:5] == "PATYS":
             print "PATYS geldi"
-            self.workerNum-=1
+            workerNum-=1
             return
         elif data[0:5] == "PATNO":
             print "PATNO geldi"
-            self.workerNum-=1
+            workerNum-=1
             return
         else:
             self.cSocket.send("CMDER")
@@ -329,7 +344,6 @@ class NegClientThread (threading.Thread):
         self.cplLock = cplLock
         self.socket = socket.socket()
     def clientParser(self, data):
-        print "Peer a gelen data :", data
         if data[0:5] == "REGWA":
             
             #Resend registration after 5s
@@ -366,8 +380,6 @@ class NegClientThread (threading.Thread):
                     #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
                     self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
             self.cplLock.release()
-            #for item in self.cpl:
-            #    print item
         
     def run(self):
         print "Starting "+self.name
@@ -378,14 +390,13 @@ class NegClientThread (threading.Thread):
         self.socket.send("GETNL")
         data = self.socket.recv(1024)
         self.clientParser(data)
-        print "Negotiator init bitti"  
-        while True:
+        print "Negotiator init bitti"
+        global mainFlag
+        while mainFlag:
             time.sleep(10)
             self.socket.send("GETNL")
             data = self.socket.recv(1024)
             self.clientParser(data)
-            #if exitFlag == 1:
-                #return
                 
 class GuiListenThread (threading.Thread): 
     def __init__(self, name, ipPorts, workQueue, processedQueue, cpl):
@@ -406,7 +417,7 @@ class GuiListenThread (threading.Thread):
                 print "Is geldi"
                 global NUMCON
                 NUMCON = 0
-                while NUMCON<10:
+                while NUMCON<12:
                     
                     rndInx= random.randint(0,(len(self.cpl)-1))
                     if(self.cpl[rndInx][3] == "P"):
@@ -469,11 +480,12 @@ class SendWorkThread (threading.Thread):
                 elif flag == 1:
                     print "is bitti yani patch geldi"
                 self.socket.send("CLOSE")
-                try:
+                byeMsg = self.socket.recv(1024)
+                """try:
                     self.socket.settimeout(10)
                     byeMsg = self.socket.recv(1024)
                 except:
-                    "zaman gecti, peer client i kapaniyor"
+                    "zaman gecti, peer client i kapaniyor"""
                 return
             try:
                 self.socket.sendall(message)
@@ -525,6 +537,7 @@ class GetProcessedThread (threading.Thread):
                 self.socket.send("PATNO "+str(header[1])+":"+str(header[0]))
                 self.flagQueue.put(-1)
                 self.isActive = False
+                f = open('patchLog', 'a')
                 f.write("PATNO geldi")
                 f.write('\n')
                 return
@@ -534,9 +547,6 @@ class GetProcessedThread (threading.Thread):
             print "Patch geldi ve processede gonderilecek e gonderilecek"
             self.pQueue.put((header,patchMx))
             self.socket.send("PATYS "+str(header[1])+":"+str(header[0]))
-            f = open('hataLog', 'a')
-            f.write("PATYS geldi")
-            f.write('\n')
             self.flagQueue.put(1)
             self.isActive = False
             
@@ -561,7 +571,76 @@ class WorkerThread (threading.Thread):
         for i in range(0,self.patchsize * self.patchsize):
             newMessage[i] = patch[i]
         return (header, newMessage)
+    
+    def filterBinarize(self, header, patch, threshold):
+        newMessage = [0] * self.patchsize * self.patchsize
+        for i in range(0,self.patchsize * self.patchsize):
+            if patch[i] > threshold:
+                newMessage[i] = 255
+            else:
+                newMessage[i] = 0
+        return (header, newMessage)
+    def filterGaussian(self, header, patch, threshold):
+        # convolve the patch with the matrix [[1/16,1/8,1/16],[1/8,1/4,1/8][1/16,1/8,1/16]]
+        # read how the convolution is applied in discrete domain
+        newMessage = [0] * self.patchsize * self.patchsize
+        for i in range(1, self.patchsize-1):
+            for j in range(1, self.patchsize-1):
+                index0 = j * self.patchsize + i # top line index
+                index1 = (j+1) * self.patchsize + i # same line index
+                index1r = (j-1) * self.patchsize + i # bottom line index
+                temp0 = \
+                    + (1.0/16)* patch[index1r - 1] \
+                    + (1.0/8)* patch[index1r + 1] \
+                    + (1.0/16)* patch[index1r + 1] \
+                    + (1.0/8)* patch[index1 - 1] \
+                    + (1.0/4)* patch[index1 - 1] \
+                    + (1.0/8)* patch[index1 + 1] \
+                    + (1.0/16)* patch[index0 - 1] \
+                    + (1.0/8)* patch[index0 - 1] \
+                    + (1.0/16)* patch[index0 + 1]
 
+                newMessage[index0] = int(temp0)
+                #apply the threshold parameter
+                #if newMessage[index0] > threshold:
+                #    newMessage[index0] = 255
+                #else:
+                #    newMessage[index0] = 0
+        return (header, newMessage)
+    
+    def filterPrewitt(self, header, patch, threshold):
+        # convolve the patch with the matrix [[-1,0,1],[-1,0,1][-1,0,1]]
+        # read how the convolution is applied in discrete domain
+        newMessage = [0] * self.patchsize * self.patchsize
+        for i in range(1, self.patchsize-1):
+            for j in range(1, self.patchsize-1):
+                index0 = j * self.patchsize + i # top line index
+                index1 = (j+1) * self.patchsize + i # same line index
+                index1r = (j-1) * self.patchsize + i # bottom line index
+                temp0 = \
+                    - 1* patch[index1r - 1] \
+                    + 1* patch[index1r + 1] \
+                    - 1* patch[index0 - 1] \
+                    + 1* patch[index0 + 1] \
+                    - 1* patch[index1 - 1] \
+                    + 1* patch[index1 + 1]
+
+                temp1 = \
+                    + 1* patch[index1r - 1] \
+                    + 1* patch[index1r]\
+                    + 1* patch[index1r + 1] \
+                    - 1* patch[index1 - 1] \
+                    - 1* patch[index1]\
+                    - 1* patch[index1 + 1]
+
+                newMessage[index0] = int(math.sqrt(temp0**2 + temp1**2))
+                #apply the threshold parameter
+                #if newMessage[index0] > threshold:
+                #    newMessage[index0] = 255
+                #else:
+                #    newMessage[index0] = 0
+        return (header, newMessage)
+    
     def filterSobel(self, header, patch, threshold):
         # convolve the patch with the matrix [[1,0,-1],[2,0,-2][1,0,-1]]
         # read how the convolution is applied in discrete domain
@@ -600,8 +679,15 @@ class WorkerThread (threading.Thread):
         outMessage = ""
         if str(self.message[0][0]) == "SobelFilter":
             outMessage = self.filterSobel(self.message[0][1], self.message[1],self.threshold)
+        elif str(self.message[0][0]) == "PrewittFilter":
+            outMessage = self.filterPrewitt(self.message[0][1], self.message[1],self.threshold)
         elif str(self.message[0][0]) == "GrayScale":
             outMessage = self.convertGray(self.message[0][1], self.message[1])
+        elif str(self.message[0][0]) == "Binarize":
+            outMessage = self.filterBinarize(self.message[0][1], self.message[1],self.threshold)
+        if str(self.message[0][0]) == "GaussianFilter":
+            outMessage = self.filterGaussian(self.message[0][1], self.message[1],self.threshold)
+            
         strMsg = ""
         for item in outMessage[1]:
             strMsg += str(item)+","
@@ -609,6 +695,47 @@ class WorkerThread (threading.Thread):
         message = str(outMessage[0][1])+":"+str(outMessage[0][0])+":"+strMsg
         self.cSocket.send("PATCH "+message)
         print "Worker thread isi bitti, kapaniyor"
+
+#Check connections, delete offline peers  
+class TimeThread (threading.Thread):
+    def __init__(self, name, cpl, cplLock, ip, port):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.cpl = cpl
+        self.cplLock = cplLock
+        self.ip = ip
+        self.port = port
+    def run(self):
+        print "Starting "+self.name
+        while True:
+            time.sleep(20)#10s just to test
+            delQueue = Queue.Queue()
+            for i in range(0,len(self.cpl)):
+                if(str(self.cpl[i][0])!=self.ip or int(self.cpl[i][1])!= self.port):
+                    try:
+                        testSocket = socket.socket()
+                        testSocket.settimeout(5)
+                        testSocket.connect((str(self.cpl[i][0]),int(self.cpl[i][1])))
+                        testSocket.send("HELLO")
+                        data = testSocket.recv(1024)
+                        if data[0:5] == "SALUT":
+                            pass
+                        else:
+                            delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
+                        testSocket.send("CLOSE")
+                        testSocket.recv(1024)
+                    except:
+                        delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
+            while not delQueue.empty():
+                delIndex = delQueue.get()
+                self.cplLock.acquire()
+                for i in range(0,len(self.cpl)):
+                    if (delIndex[0]==self.cpl[i][0] and int(delIndex[1])==int(self.cpl[i][1])):
+                        print "siliyorum sunu ", self.cpl[i]
+                        del self.cpl[i]                    
+                        break;
+                self.cplLock.release()
+                
 class imGui(QMainWindow):
     def __init__(self, workQueue, processedQueue):
         self.qt_app = QApplication(sys.argv)
@@ -625,10 +752,13 @@ class imGui(QMainWindow):
         self.frameScaled = None
         self.imageFile = None
         self.patchsize = 128
+        
         # fill combobox
         self.ui.boxFunction.addItem("GrayScale")
         self.ui.boxFunction.addItem("SobelFilter")
-
+        self.ui.boxFunction.addItem("Binarize")
+        self.ui.boxFunction.addItem("PrewittFilter")
+        self.ui.boxFunction.addItem("GaussianFilter")
         # connect buttons
         self.ui.buttonLoadImage.clicked.connect(self.loadImagePressed)
         self.ui.buttonResetImage.clicked.connect(self.resetImagePressed)
@@ -722,7 +852,6 @@ class imGui(QMainWindow):
         # convert the message data into the matrix and put directy on the
         # image using the reference pixels (refPix)
         counter = 0
-        print "FONKSIYONDAKI COLOR DATA TIPI",type(data),"data tipi"
         for color in data:
             x = counter % self.patchsize
             y = counter // self.patchsize

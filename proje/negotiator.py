@@ -64,7 +64,10 @@ class ServerThread (threading.Thread):
         if len(data) == 0:
             return
         if data[0:5] == "CLOSE":
-            self.cSocket.send("BUBYE")
+            try:
+                self.cSocket.send("BUBYE")
+            except:
+                print "other side already closed"
             print "Server ",self.name , "closing"
             self.isActive = False
         if data[0:5] == "HELLO":
@@ -157,7 +160,6 @@ class TimeThread (threading.Thread):
                         testSocket.connect((str(self.cpl[i][0]),int(self.cpl[i][1])))
                         testSocket.send("HELLO")
                         data = testSocket.recv(1024)
-                        print "test edilirken gelen data : ", data
                         if data[0:5] == "SALUT":
                             pass
                         else:
