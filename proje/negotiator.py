@@ -5,10 +5,7 @@ import threading
 import socket
 import Queue
 import time
-"""
-TODO:
--Completed? recv(1024) may cause problems  
-"""
+
 class ClientThread (threading.Thread):
     def __init__(self, name, test, cpl, cplLock):
         threading.Thread.__init__(self)
@@ -150,7 +147,7 @@ class TimeThread (threading.Thread):
     def run(self):
         print "Starting "+self.name
         while True:
-            time.sleep(10)#20s just to test
+            time.sleep(20)#20s just to test
             delQueue = Queue.Queue()
             for i in range(0,len(self.cpl)):
                 if(str(self.cpl[i][0])!=self.ip or int(self.cpl[i][1])!= self.port):
@@ -166,6 +163,9 @@ class TimeThread (threading.Thread):
                             delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
                         testSocket.send("CLOSE")
                         testSocket.recv(1024)
+                        self.cplLock.acquire()
+                        self.cpl[i][2] = time.ctime()
+                        self.cplLock.release()
                     except:
                         delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
             while not delQueue.empty():

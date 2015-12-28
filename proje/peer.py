@@ -11,11 +11,6 @@ import time
 import random
 import math
 import socket
-import re
-"""
-TODO:
--Implement other filters
-"""
 
 def rgb2gray(rgbint):
     # convert the 32 bit color into 8-bit grayscale
@@ -85,7 +80,6 @@ class MainThread (threading.Thread):
             guiListener = GuiListenThread("GuiListener", ipsPorts, self.wQueue, self.pQueue, cpl)
             guiListener.setDaemon(True)
             guiListener.start()
-            print "buyuk ihtimal calisti"
         except:
             print "guilistener sikinti cikardi"
         global mainFlag
@@ -166,7 +160,7 @@ class ServerThread (threading.Thread):
                 self.cSocket.send("BUBYE")
             except:
                 print "karsi taraf kapanmis"
-                
+                pass
             self.isActive = False
             return
         
@@ -325,7 +319,6 @@ class ServerThread (threading.Thread):
         print "Starting "+self.name
         while self.isActive:
             data = self.cSocket.recv(66000)
-            print "aldigim data buyuklugu", len(data)
             self.incomingParser(data)
 
         print "Kapaniyor ", self.name
@@ -373,9 +366,9 @@ class NegClientThread (threading.Thread):
                 #exists?
                 if [item for item in self.cpl if (item[0] == str(parsed[0]) and item[1]==str(parsed[1]))]:
                     pass # belki hangisinin time i daha yeniyse o implemente edilebilir?
-                    #TODO
                 #new peer
                 else:
+                    print "CPL e eklenen : ",item
                     actTime = str(parsed[2])+":"+str(parsed[3])+":"+str(parsed[4])
                     #actTime = time.asctime(time.strptime(actTime, "%a %b %d %H:%M:%S %Y"))
                     self.cpl.append([str(parsed[0]),str(parsed[1]),actTime,str(parsed[5]),"S"])
@@ -389,8 +382,8 @@ class NegClientThread (threading.Thread):
         self.clientParser(data)
         self.socket.send("GETNL")
         data = self.socket.recv(1024)
+        
         self.clientParser(data)
-        print "Negotiator init bitti"
         global mainFlag
         while mainFlag:
             time.sleep(10)
@@ -553,7 +546,7 @@ class GetProcessedThread (threading.Thread):
     def run(self):
         print "Starting "+self.name    
         while self.isActive:
-            data = self.socket.recv(10000000)
+            data = self.socket.recv(66000)
             self.clientParser(data)
       
 class WorkerThread (threading.Thread):
@@ -724,6 +717,9 @@ class TimeThread (threading.Thread):
                             delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
                         testSocket.send("CLOSE")
                         testSocket.recv(1024)
+                        self.cplLock.acquire()
+                        self.cpl[i][2] = time.ctime()
+                        self.cplLock.release()
                     except:
                         delQueue.put((str(self.cpl[i][0]),int(self.cpl[i][1])))
             while not delQueue.empty():
