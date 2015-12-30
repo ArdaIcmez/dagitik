@@ -599,6 +599,26 @@ class WorkerThread (threading.Thread):
                 #    newMessage[index0] = 255
                 #else:
                 #    newMessage[index0] = 0
+        for i in range(0,self.patchsize):
+            for j in range(0,self.patchsize):
+                if i==0:
+                    if j == 0:
+                        newMessage[0] = newMessage[self.patchsize+1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize] = newMessage[(j-1)*self.patchsize+1]
+                    else:
+                        newMessage[j*self.patchsize] = newMessage[j*self.patchsize+1]
+                elif i == self.patchsize-1:
+                    if j == 0:
+                        newMessage[i] = newMessage[self.patchsize+i-1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize+i] = newMessage[((j-1)*self.patchsize)+i-1]
+                    else:
+                        newMessage[j*self.patchsize+i] = newMessage[j*self.patchsize+i-1]
+                elif j==0:
+                    newMessage[i] = newMessage[self.patchsize+i]
+                elif j == self.patchsize-1:
+                    newMessage[j*self.patchsize+i] = newMessage[(j-1)*self.patchsize+i]
         return (header, newMessage)
     
     def filterPrewitt(self, header, patch, threshold):
@@ -632,6 +652,26 @@ class WorkerThread (threading.Thread):
                 #    newMessage[index0] = 255
                 #else:
                 #    newMessage[index0] = 0
+        for i in range(0,self.patchsize):
+            for j in range(0,self.patchsize):
+                if i==0:
+                    if j == 0:
+                        newMessage[0] = newMessage[self.patchsize+1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize] = newMessage[(j-1)*self.patchsize+1]
+                    else:
+                        newMessage[j*self.patchsize] = newMessage[j*self.patchsize+1]
+                elif i == self.patchsize-1:
+                    if j == 0:
+                        newMessage[i] = newMessage[self.patchsize+i-1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize+i] = newMessage[(j-1)*self.patchsize+i-1]
+                    else:
+                        newMessage[j*self.patchsize+i] = newMessage[j*self.patchsize+i-1]
+                elif j==0:
+                    newMessage[i] = newMessage[self.patchsize+i]
+                elif j == self.patchsize-1:
+                    newMessage[j*self.patchsize+i] = newMessage[(j-1)*self.patchsize+i]
         return (header, newMessage)
     
     def filterSobel(self, header, patch, threshold):
@@ -665,6 +705,26 @@ class WorkerThread (threading.Thread):
                 #    newMessage[index0] = 255
                 #else:
                 #    newMessage[index0] = 0
+        for i in range(0,self.patchsize):
+            for j in range(0,self.patchsize):
+                if i==0:
+                    if j == 0:
+                        newMessage[0] = newMessage[self.patchsize+1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize] = newMessage[(j-1)*self.patchsize+1]
+                    else:
+                        newMessage[j*self.patchsize] = newMessage[j*self.patchsize+1]
+                elif i == self.patchsize-1:
+                    if j == 0:
+                        newMessage[i] = newMessage[self.patchsize+i-1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize+i] = newMessage[(j-1)*self.patchsize+i-1]
+                    else:
+                        newMessage[j*self.patchsize+i] = newMessage[j*self.patchsize+i-1]
+                elif j==0:
+                    newMessage[i] = newMessage[self.patchsize+i]
+                elif j == self.patchsize-1:
+                    newMessage[j*self.patchsize+i] = newMessage[(j-1)*self.patchsize+i]
         return (header, newMessage)
 
     def run(self):
