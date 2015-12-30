@@ -44,6 +44,7 @@ class MainThread (threading.Thread):
         funcList.append(["Binarize"])
         funcList.append(["PrewittFilter"])
         funcList.append(["GaussianFilter"])
+        funcList.append(["RobertsFilter"])
         negIp = "localhost"
         negPort = 11111
         
@@ -573,6 +574,51 @@ class WorkerThread (threading.Thread):
             else:
                 newMessage[i] = 0
         return (header, newMessage)
+    def filterRobert(self, header, patch, threshold):
+        # convolve the patch with the matrix [[0,0,0],[0,1,0][0,0,-1]]
+        # read how the convolution is applied in discrete domain
+        newMessage = [0] * self.patchsize * self.patchsize
+        for i in range(1, self.patchsize-1):
+            for j in range(1, self.patchsize-1):
+                index0 = j * self.patchsize + i # top line index
+                index1 = (j+1) * self.patchsize + i # same line index
+                index1r = (j-1) * self.patchsize + i # bottom line index
+                temp0 = \
+                    + 1* patch[index0] \
+                    - 1* patch[index1 + 1] 
+                    
+                temp1 = \
+                    + 1* patch[index0 + 1] \
+                    - 1* patch[index1]
+                
+                newMessage[index0] = int(math.sqrt(temp0**2 + temp1**2))
+                #apply the threshold parameter
+                #if newMessage[index0] > threshold:
+                #    newMessage[index0] = 255
+                #else:
+                #    newMessage[index0] = 0
+        for i in range(0,self.patchsize):
+            for j in range(0,self.patchsize):
+                if i==0:
+                    if j == 0:
+                        newMessage[0] = newMessage[self.patchsize+1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize] = newMessage[(j-1)*self.patchsize+1]
+                    else:
+                        newMessage[j*self.patchsize] = newMessage[j*self.patchsize+1]
+                elif i == self.patchsize-1:
+                    if j == 0:
+                        newMessage[i] = newMessage[self.patchsize+i-1]
+                    elif j == self.patchsize-1 :
+                        newMessage[j*self.patchsize+i] = newMessage[((j-1)*self.patchsize)+i-1]
+                    else:
+                        newMessage[j*self.patchsize+i] = newMessage[j*self.patchsize+i-1]
+                elif j==0:
+                    newMessage[i] = newMessage[self.patchsize+i]
+                elif j == self.patchsize-1:
+                    newMessage[j*self.patchsize+i] = newMessage[(j-1)*self.patchsize+i]
+        return (header, newMessage)
+    
     def filterGaussian(self, header, patch, threshold):
         # convolve the patch with the matrix [[1/16,1/8,1/16],[1/8,1/4,1/8][1/16,1/8,1/16]]
         # read how the convolution is applied in discrete domain
@@ -586,12 +632,12 @@ class WorkerThread (threading.Thread):
                     + (1.0/16)* patch[index1r - 1] \
                     + (1.0/8)* patch[index1r + 1] \
                     + (1.0/16)* patch[index1r + 1] \
-                    + (1.0/8)* patch[index1 - 1] \
-                    + (1.0/4)* patch[index1 - 1] \
-                    + (1.0/8)* patch[index1 + 1] \
-                    + (1.0/16)* patch[index0 - 1] \
                     + (1.0/8)* patch[index0 - 1] \
-                    + (1.0/16)* patch[index0 + 1]
+                    + (1.0/4)* patch[index0 - 1] \
+                    + (1.0/8)* patch[index0 + 1] \
+                    + (1.0/16)* patch[index1 - 1] \
+                    + (1.0/8)* patch[index1 - 1] \
+                    + (1.0/16)* patch[index1 + 1]
 
                 newMessage[index0] = int(temp0)
                 #apply the threshold parameter
@@ -740,6 +786,8 @@ class WorkerThread (threading.Thread):
             outMessage = self.filterBinarize(self.message[0][1], self.message[1],self.threshold)
         if str(self.message[0][0]) == "GaussianFilter":
             outMessage = self.filterGaussian(self.message[0][1], self.message[1],self.threshold)
+        if str(self.message[0][0]) == "RobertsFilter":
+            outMessage = self.filterRobert(self.message[0][1], self.message[1],self.threshold)
             
         strMsg = ""
         for item in outMessage[1]:
@@ -815,6 +863,7 @@ class imGui(QMainWindow):
         self.ui.boxFunction.addItem("Binarize")
         self.ui.boxFunction.addItem("PrewittFilter")
         self.ui.boxFunction.addItem("GaussianFilter")
+        self.ui.boxFunction.addItem("RobertsFilter")
         # connect buttons
         self.ui.buttonLoadImage.clicked.connect(self.loadImagePressed)
         self.ui.buttonResetImage.clicked.connect(self.resetImagePressed)
